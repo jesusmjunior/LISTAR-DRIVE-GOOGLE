@@ -89,7 +89,6 @@ if link:
 """
 
 # Salvar o app.py
-with open("/mnt/data/app.py", "w", encoding="utf-8") as f:
     f.write(app_py_content)
 
 "/mnt/data/app.py"
