@@ -1,105 +1,78 @@
-# Preparando estrutura completa do projeto para Streamlit Cloud e GitHub (100% online)
-
-# Conteúdo do app.py adaptado para 100% online (Streamlit Cloud)
-app_py_content = """
 import streamlit as st
+from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 import pandas as pd
 import re
 
-st.set_page_config(page_title="Google Drive Folder Lister", page_icon="📂")
+# Configuração da página
+st.set_page_config(
+    page_title="Adm. Jesus Martins - Extratador de dados do Google Drive",
+    page_icon="📂"
+)
 
-st.title('📂 Google Drive Folder File Lister')
-st.write('Cole abaixo o link da pasta do Google Drive para listar os arquivos (nível principal).')
+st.title('📂 Adm. Jesus Martins - Extratador de dados do Google Drive')
+st.write('Faça login com seu Google para listar seus arquivos e gerar relatório.')
 
-# Função para extrair ID da pasta
-def extrair_id_pasta(link):
-    match = re.search(r'/folders/([a-zA-Z0-9_-]+)', link)
-    if match:
-        return match.group(1)
-    else:
-        return None
+# CONFIGURAÇÃO OAuth 2.0 (SUBSTITUA PELO SEU CLIENT ID PÚBLICO!)
+client_config = {
+  "web": {
+    "client_id": "YOUR_PUBLIC_CLIENT_ID.apps.googleusercontent.com",  # <<<<< Coloque aqui seu client_id do Google
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "redirect_uris": ["https://YOUR-STREAMLIT-APP.streamlit.app"],  # <<<<< Coloque o URL do seu Streamlit Cloud
+    "project_id": "streamlit-drive-extractor"
+  }
+}
 
-# Autenticação usando secrets do Streamlit Cloud
-def google_auth():
-    creds_info = {
-        "token": st.secrets["google_api"]["token"],
-        "refresh_token": st.secrets["google_api"]["refresh_token"],
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "client_id": st.secrets["google_api"]["client_id"],
-        "client_secret": st.secrets["google_api"]["client_secret"],
-        "scopes": ["https://www.googleapis.com/auth/drive.metadata.readonly"]
-    }
-    creds = Credentials.from_authorized_user_info(info=creds_info)
+scopes = ["https://www.googleapis.com/auth/drive.metadata.readonly"]
+
+# Verifica se já está autenticado
+if 'credentials' not in st.session_state:
+    flow = Flow.from_client_config(client_config, scopes=scopes, redirect_uri=client_config['web']['redirect_uris'][0])
+    auth_url, _ = flow.authorization_url(prompt='consent')
+    st.markdown(f"[🔑 Clique aqui para login com Google]({auth_url})")
+else:
+    creds = Credentials(**st.session_state['credentials'])
     service = build('drive', 'v3', credentials=creds)
-    return service
 
-# Função para listar arquivos da pasta
-def listar_arquivos_pasta(service, folder_id):
-    query = f"'{folder_id}' in parents and trashed = false"
-    results = service.files().list(q=query,
-                                   fields="files(id, name, mimeType, modifiedTime, webViewLink)").execute()
-    items = results.get('files', [])
-    return items
+    # Função para listar arquivos
+    def listar_arquivos(folder_id=None):
+        query = "'root' in parents and trashed = false" if not folder_id else f"'{folder_id}' in parents and trashed = false"
+        results = service.files().list(q=query,
+                                       fields="files(id, name, mimeType, modifiedTime, size, webViewLink)").execute()
+        items = results.get('files', [])
+        return items
 
-link = st.text_input('Link da Pasta do Google Drive')
+    st.info('🔎 Lendo seus arquivos do Google Drive...')
+    arquivos = listar_arquivos()
 
-if link:
-    folder_id = extrair_id_pasta(link)
-    if folder_id:
-        st.info('🔑 Autenticando com Google...')
-        try:
-            service = google_auth()
-            st.success('✅ Autenticado!')
+    if arquivos:
+        data = []
+        for item in arquivos:
+            data.append({
+                'Nome': item['name'],
+                'Tipo': 'Pasta' if item['mimeType'] == 'application/vnd.google-apps.folder' else 'Arquivo',
+                'MIME': item['mimeType'],
+                'Link': item['webViewLink'],
+                'Última Modificação': item['modifiedTime'],
+                'Tamanho': item.get('size', '—')
+            })
+        df = pd.DataFrame(data)
+        st.write('### 📋 Arquivos Encontrados:', df)
 
-            st.write('🔎 Buscando arquivos...')
-            arquivos = listar_arquivos_pasta(service, folder_id)
+        # Filtros Dinâmicos
+        filtro_tipo = st.multiselect('Filtrar por Tipo', df['Tipo'].unique())
+        if filtro_tipo:
+            df = df[df['Tipo'].isin(filtro_tipo)]
 
-            if arquivos:
-                data = []
-                for item in arquivos:
-                    data.append({
-                        'Nome': item['name'],
-                        'Tipo (MIME)': item['mimeType'],
-                        'Link': item['webViewLink'],
-                        'Última Modificação': item['modifiedTime']
-                    })
-                df = pd.DataFrame(data)
-                st.write('### 📋 Arquivos Encontrados:', df)
-
-                csv = df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Baixar CSV",
-                    data=csv,
-                    file_name='lista_arquivos.csv',
-                    mime='text/csv',
-                )
-            else:
-                st.warning('Nenhum arquivo encontrado na pasta.')
-        except Exception as e:
-            st.error(f'Erro: {str(e)}')
+        # Download XLSX
+        excel = df.to_excel(index=False, engine='openpyxl')
+        st.download_button(
+            label="📥 Baixar XLSX",
+            data=excel,
+            file_name='extrato_google_drive.xlsx',
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
     else:
-        st.error('❌ Link inválido! Verifique se é um link de pasta válido.')
-"""
-
-# requirements.txt para rodar no Streamlit Cloud
-requirements_content = """
-streamlit
-google-api-python-client
-google-auth
-pandas
-"""
-
-# README explicando tudo para GitHub + Streamlit Cloud
-readme_content = """
-# Google Drive Folder File Lister (100% Online)
-
-Este aplicativo lista os arquivos de qualquer pasta do Google Drive e gera um CSV. Roda totalmente no **Streamlit Cloud**, conectado ao seu repositório no **GitHub**.
-
-## Como Usar:
-
-1. Suba este repositório para seu GitHub.
-2. No [Streamlit Cloud](https://streamlit.io/cloud), conecte ao repositório.
-3. Em **Settings → Secrets**, configure suas credenciais Google:
-
+        st.warning('Nenhum arquivo encontrado.')
