@@ -1,19 +1,19 @@
-# Conteúdo do app.py adaptado para uso no Streamlit Cloud usando secrets.toml
+# Preparando estrutura completa do projeto para Streamlit Cloud e GitHub (100% online)
 
+# Conteúdo do app.py adaptado para 100% online (Streamlit Cloud)
 app_py_content = """
 import streamlit as st
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 import pandas as pd
 import re
-import json
 
-st.set_page_config(page_title="Google Drive Folder File Lister", page_icon="📂")
+st.set_page_config(page_title="Google Drive Folder Lister", page_icon="📂")
 
 st.title('📂 Google Drive Folder File Lister')
-st.write('Cole abaixo o link da pasta do Google Drive para listar os arquivos (somente arquivos do nível principal).')
+st.write('Cole abaixo o link da pasta do Google Drive para listar os arquivos (nível principal).')
 
-# Extrair ID da pasta
+# Função para extrair ID da pasta
 def extrair_id_pasta(link):
     match = re.search(r'/folders/([a-zA-Z0-9_-]+)', link)
     if match:
@@ -21,19 +21,21 @@ def extrair_id_pasta(link):
     else:
         return None
 
-# Autenticação via secrets
+# Autenticação usando secrets do Streamlit Cloud
 def google_auth():
     creds_info = {
+        "token": st.secrets["google_api"]["token"],
+        "refresh_token": st.secrets["google_api"]["refresh_token"],
+        "token_uri": "https://oauth2.googleapis.com/token",
         "client_id": st.secrets["google_api"]["client_id"],
         "client_secret": st.secrets["google_api"]["client_secret"],
-        "refresh_token": st.secrets["google_api"]["refresh_token"],
-        "token_uri": "https://oauth2.googleapis.com/token"
+        "scopes": ["https://www.googleapis.com/auth/drive.metadata.readonly"]
     }
-    creds = Credentials.from_authorized_user_info(info=creds_info, scopes=["https://www.googleapis.com/auth/drive.metadata.readonly"])
+    creds = Credentials.from_authorized_user_info(info=creds_info)
     service = build('drive', 'v3', credentials=creds)
     return service
 
-# Listar arquivos
+# Função para listar arquivos da pasta
 def listar_arquivos_pasta(service, folder_id):
     query = f"'{folder_id}' in parents and trashed = false"
     results = service.files().list(q=query,
@@ -50,10 +52,10 @@ if link:
         try:
             service = google_auth()
             st.success('✅ Autenticado!')
-            
+
             st.write('🔎 Buscando arquivos...')
             arquivos = listar_arquivos_pasta(service, folder_id)
-            
+
             if arquivos:
                 data = []
                 for item in arquivos:
@@ -81,7 +83,7 @@ if link:
         st.error('❌ Link inválido! Verifique se é um link de pasta válido.')
 """
 
-# Conteúdo do requirements.txt
+# requirements.txt para rodar no Streamlit Cloud
 requirements_content = """
 streamlit
 google-api-python-client
@@ -89,22 +91,15 @@ google-auth
 pandas
 """
 
-# Conteúdo do README.md
+# README explicando tudo para GitHub + Streamlit Cloud
 readme_content = """
-# Google Drive Folder File Lister
+# Google Drive Folder File Lister (100% Online)
 
-Este aplicativo permite listar os arquivos de qualquer pasta do Google Drive e gerar um CSV, rodando via Streamlit Cloud.
+Este aplicativo lista os arquivos de qualquer pasta do Google Drive e gera um CSV. Roda totalmente no **Streamlit Cloud**, conectado ao seu repositório no **GitHub**.
 
-## Como usar:
+## Como Usar:
 
-1. Clone ou faça fork deste repositório.
-2. No Streamlit Cloud, conecte ao repositório.
-3. Configure suas credenciais Google Drive em `.streamlit/secrets.toml`.
+1. Suba este repositório para seu GitHub.
+2. No [Streamlit Cloud](https://streamlit.io/cloud), conecte ao repositório.
+3. Em **Settings → Secrets**, configure suas credenciais Google:
 
-## Exemplo do arquivo `.streamlit/secrets.toml`:
-
-```toml
-[google_api]
-client_id = "SEU_CLIENT_ID"
-client_secret = "SEU_CLIENT_SECRET"
-refresh_token = "SEU_REFRESH_TOKEN"
