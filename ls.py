@@ -1,59 +1,56 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
+from html.parser import HTMLParser
 import pandas as pd
 
-# Configuração da página
-st.set_page_config(page_title="📂 Google Drive - Pasta Pública", layout="centered")
-
-# Título e instruções minimalistas
-st.title("📂 Google Drive - Listar Arquivos")
+# CONFIGURAÇÃO STREAMLIT
+st.set_page_config(page_title="🔎 Scraping Google Drive ou HTML", layout="centered")
+st.title("📂 Google Drive Scraper - Sem BeautifulSoup")
 
 st.markdown("""
-1️⃣ Cole abaixo o link público da pasta do Google Drive.  
-2️⃣ O app listará os arquivos disponíveis, com link direto para download.  
-3️⃣ Você pode exportar a lista em XLS.
+## 👋 Bem-vindo!
+
+Este app faz scraping de HTML simples SEM usar BeautifulSoup (sem instalação extra).
+
+Cole abaixo qualquer HTML ou resultado que deseja parsear.
 """)
 
-# Input do link
-link = st.text_input("🔗 Link da pasta pública do Google Drive:")
+# DEFININDO PARSER NATIVO
+class MeuParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.textos = []
+        self.links = []
 
-# Função para extrair arquivos da pasta
-def listar_arquivos_pasta(link_pasta):
-    arquivos = []
-    try:
-        response = requests.get(link_pasta)
-        soup = BeautifulSoup(response.text, 'html.parser')
+    def handle_data(self, data):
+        texto = data.strip()
+        if texto:
+            self.textos.append(texto)
 
-        # Extração baseada na estrutura pública do Google Drive
-        for tag in soup.find_all('div'):
-            if 'data-id' in tag.attrs:
-                file_id = tag['data-id']
-                nome_arquivo = tag.text.strip()
-                link_download = f"https://drive.google.com/uc?id={file_id}&export=download"
-                arquivos.append({
-                    'Nome do Arquivo': nome_arquivo,
-                    'ID do Arquivo': file_id,
-                    'Link Direto': link_download
-                })
-        return pd.DataFrame(arquivos)
-    except Exception as e:
-        return f"Erro ao acessar: {e}"
+    def handle_starttag(self, tag, attrs):
+        if tag == 'a':
+            for attr in attrs:
+                if attr[0] == 'href':
+                    self.links.append(attr[1])
 
-# Execução principal
-if link:
-    with st.spinner("🔄 Buscando arquivos..."):
-        resultado = listar_arquivos_pasta(link)
-        if isinstance(resultado, pd.DataFrame) and not resultado.empty:
-            st.success(f"✅ {len(resultado)} arquivos encontrados!")
-            st.dataframe(resultado)
+# INPUT DO USUÁRIO
+html_input = st.text_area("📥 Cole aqui o HTML:", "<h1>Título</h1><p>Parágrafo de exemplo.</p><a href='https://google.com'>Google</a>")
 
-            # Exportação XLS
-            xls = resultado.to_excel(index=False, engine='openpyxl')
-            st.download_button(
-                label="📥 Baixar lista em XLS",
-                data=xls,
-                file_name="lista_arquivos_drive.xlsx"
-            )
-        else:
-            st.error("❌ Não foi possível localizar arquivos. Verifique se o link é público.")
+if st.button("🔍 Fazer Scraping"):
+    parser = MeuParser()
+    parser.feed(html_input)
+    
+    st.subheader("🎯 Textos Extraídos:")
+    for texto in parser.textos:
+        st.write(f"- {texto}")
+    
+    st.subheader("🔗 Links Encontrados:")
+    for link in parser.links:
+        st.write(f"- {link}")
+    
+    # EXPORTAR PARA XLS
+    if parser.textos or parser.links:
+        df = pd.DataFrame({
+            "Textos": parser.textos,
+            "Links": parser.links + [""]*(len(parser.textos) - len(parser.links)) if len(parser.links) < len(parser.textos) else parser.links
+        })
+        st.download_button("📥 Baixar XLS", df.to_csv(index=False), file_name="resultado_scraping.csv")
