@@ -1,74 +1,53 @@
 import streamlit as st
+import requests
+from bs4 import BeautifulSoup
 import pandas as pd
-from google_auth_oauthlib.flow import Flow
-from googleapiclient.discovery import build
-import tempfile
-import openpyxl
 
-# 🟢 CONFIGURAÇÃO STREAMLIT
-st.set_page_config(page_title="📂 Google Drive - Lista Arquivos", layout="centered")
-st.title("📂 Google Drive - Listar Arquivos")
+st.set_page_config(page_title="📂 Google Drive Pasta Pública", layout="centered")
+st.title("📂 Google Drive - Listar Arquivos de Pasta Pública")
 
 st.markdown("""
-## 👋 Bem-vindo!
+### 🚀 Insira abaixo o link da pasta pública do Google Drive:
 
-1️⃣ Clique abaixo para **Fazer Login com Google**  
-2️⃣ Permita o acesso ao seu Google Drive  
-3️⃣ Veja sua lista de arquivos!
+⚠️ **Importante:** A pasta deve estar com permissão **"Qualquer pessoa com link pode visualizar".  
+O sistema listará os arquivos disponíveis com seus respectivos links.**
 """)
 
-# 🟢 OAUTH GOOGLE CONFIG
-CLIENT_SECRET_FILE = 'client_secret.json'
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+link = st.text_input("🔗 Link da pasta pública:")
 
-flow = Flow.from_client_secrets_file(
-    CLIENT_SECRET_FILE,
-    scopes=SCOPES,
-    redirect_uri=st.experimental_get_query_params().get("redirect_uri", ["http://localhost:8501"])[0]
-)
-
-auth_url, _ = flow.authorization_url(prompt='consent')
-st.write(f"### 🔑 [FAZER LOGIN COM GOOGLE]({auth_url})")
-
-# 🟢 RECEBER CÓDIGO OAUTH
-code = st.text_input("👉 Depois de autorizar, copie e cole aqui o código da URL:")
-
-if code:
+def extrair_arquivos_pasta(link_pasta):
+    arquivos = []
     try:
-        flow.fetch_token(code=code)
-        creds = flow.credentials
-        service = build('drive', 'v3', credentials=creds)
-        arquivos = []
-        page_token = None
+        response = requests.get(link_pasta)
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-        st.info("🔄 Buscando arquivos do seu Google Drive...")
-
-        while True:
-            response = service.files().list(
-                pageSize=100,
-                fields="nextPageToken, files(id, name, mimeType, modifiedTime, webViewLink)",
-                pageToken=page_token
-            ).execute()
-            for arquivo in response.get('files', []):
+        # Busca por IDs dos arquivos na página
+        for tag in soup.find_all('div'):
+            if 'data-id' in tag.attrs:
+                file_id = tag['data-id']
+                nome_arquivo = tag.text.strip()
+                link_download = f"https://drive.google.com/uc?id={file_id}&export=download"
                 arquivos.append({
-                    "Nome": arquivo.get('name'),
-                    "ID": arquivo.get('id'),
-                    "Tipo": arquivo.get('mimeType'),
-                    "Última Modificação": arquivo.get('modifiedTime'),
-                    "Link": arquivo.get('webViewLink')
+                    'Nome do Arquivo': nome_arquivo,
+                    'ID': file_id,
+                    'Link Download Direto': link_download
                 })
-            page_token = response.get('nextPageToken', None)
-            if not page_token:
-                break
-
-        df = pd.DataFrame(arquivos)
-        st.success(f"✅ {len(arquivos)} arquivos encontrados!")
-        st.dataframe(df)
-
-        # 🟢 EXPORTAÇÃO XLS
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
-            df.to_excel(tmp.name, index=False)
-            st.download_button("📥 Baixar XLS", data=open(tmp.name, 'rb').read(), file_name="meus_arquivos_drive.xlsx")
-
+        return pd.DataFrame(arquivos)
     except Exception as e:
-        st.error(f"Erro: {e}")
+        return f"Erro ao acessar: {e}"
+
+if link:
+    with st.spinner("🔄 Buscando arquivos na pasta..."):
+        resultado = extrair_arquivos_pasta(link)
+        if isinstance(resultado, pd.DataFrame) and not resultado.empty:
+            st.success(f"✅ {len(resultado)} arquivos encontrados!")
+            st.dataframe(resultado)
+
+            # Download XLS
+            st.download_button(
+                "📥 Baixar Lista de Arquivos em XLS",
+                resultado.to_excel(index=False),
+                file_name="lista_arquivos_drive.xlsx"
+            )
+        else:
+            st.error("❌ Não foi possível localizar arquivos. Verifique se o link está correto e é público.")
