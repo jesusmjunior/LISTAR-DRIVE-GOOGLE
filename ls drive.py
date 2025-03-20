@@ -1,70 +1,56 @@
 import streamlit as st
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 import pandas as pd
-import requests
 
-# --- CONFIGURAÇÕES BÁSICAS ---
-st.set_page_config(page_title="Adm. Jesus Martins - Extratador de dados do Google Drive", page_icon="📂")
+# α (Alfa) - Organização segura das credenciais
+st.title("📂 Lista de Arquivos do Google Drive")
 
-st.title('📂 Adm. Jesus Martins - Extratador de dados do Google Drive')
+# Configuração do Google OAuth com Service Account (deve ser configurado no Streamlit Secrets)
+creds = service_account.Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=["https://www.googleapis.com/auth/drive.readonly"],
+)
 
-st.write("""
-Faça login com sua conta Google, autorize o acesso, e gere um relatório do seu Google Drive.
-""")
+# β (Beta) - Função modular para listar arquivos
+@st.cache_data
+def listar_arquivos():
+    try:
+        service = build('drive', 'v3', credentials=creds)
+        arquivos = []
+        pagina_token = None
+        while True:
+            resposta = service.files().list(
+                pageSize=100,
+                fields="nextPageToken, files(id, name, mimeType, modifiedTime, webViewLink)",
+                pageToken=pagina_token
+            ).execute()
+            for arquivo in resposta.get('files', []):
+                arquivos.append({
+                    "Nome": arquivo.get('name'),
+                    "ID": arquivo.get('id'),
+                    "Tipo": arquivo.get('mimeType'),
+                    "Última Modificação": arquivo.get('modifiedTime'),
+                    "Link": arquivo.get('webViewLink')
+                })
+            pagina_token = resposta.get('nextPageToken', None)
+            if not pagina_token:
+                break
+        return arquivos
+    except Exception as e:
+        st.error(f"Erro ao listar arquivos: {e}")
+        return []
 
-# --- PARÂMETROS DO CLIENT_ID (público) ---
-CLIENT_ID = "YOUR_PUBLIC_CLIENT_ID.apps.googleusercontent.com"  # Substitua pelo seu Client ID do Google
-REDIRECT_URI = "https://YOUR-STREAMLIT-APP.streamlit.app"  # Substitua pelo seu Streamlit URL
-SCOPE = "https://www.googleapis.com/auth/drive.metadata.readonly"
-RESPONSE_TYPE = "token"
+# Botão para iniciar
+if st.button("🔍 Listar Arquivos"):
+    # γ (Gama) - Chamada segura da API
+    arquivos = listar_arquivos()
+    if arquivos:
+        df = pd.DataFrame(arquivos)
+        st.dataframe(df)
 
-# --- LINK OAUTH GOOGLE ---
-oauth_url = f"https://accounts.google.com/o/oauth2/v2/auth?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type={RESPONSE_TYPE}&scope={SCOPE}&include_granted_scopes=true"
-
-st.markdown(f"### 🔑 [Clique aqui para fazer login com Google e autorizar acesso]({oauth_url})")
-
-# --- CAPTURA TOKEN VIA URL ---
-token = st.experimental_get_query_params().get("access_token", [None])[0]
-
-if token:
-    st.success("✅ Autorizado com sucesso! Gerando relatório...")
-
-    # --- CONSULTA DIRETA À API GOOGLE DRIVE ---
-    headers = {"Authorization": f"Bearer {token}"}
-    params = {"pageSize": 1000, "fields": "files(id, name, mimeType, modifiedTime, size, webViewLink)"}
-    response = requests.get("https://www.googleapis.com/drive/v3/files", headers=headers, params=params)
-
-    if response.status_code == 200:
-        files = response.json().get("files", [])
-        if files:
-            # --- TRANSFORMAR EM DATAFRAME ---
-            df = pd.DataFrame([{
-                "Nome": f["name"],
-                "Tipo": "Pasta" if f["mimeType"] == "application/vnd.google-apps.folder" else "Arquivo",
-                "MIME": f["mimeType"],
-                "Link": f.get("webViewLink", ""),
-                "Última Modificação": f.get("modifiedTime", ""),
-                "Tamanho (Bytes)": f.get("size", "—")
-            } for f in files])
-
-            st.write("### 📋 Arquivos encontrados:")
-            st.dataframe(df)
-
-            # --- FILTROS DINÂMICOS ---
-            tipo_filter = st.multiselect('Filtrar por Tipo', df['Tipo'].unique())
-            if tipo_filter:
-                df = df[df['Tipo'].isin(tipo_filter)]
-
-            # --- DOWNLOAD XLSX ---
-            excel_bytes = df.to_excel(index=False, engine='openpyxl')
-            st.download_button(
-                label="📥 Baixar XLSX",
-                data=excel_bytes,
-                file_name='extrato_google_drive.xlsx',
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-        else:
-            st.warning("Nenhum arquivo encontrado.")
+        # ε (Epsilon) - Exportação para XLS
+        xls = df.to_excel(index=False, engine='openpyxl')
+        st.download_button("📥 Download XLS", data=xls, file_name='lista_arquivos.xlsx')
     else:
-        st.error("Erro ao consultar Google Drive API.")
-else:
-    st.warning("⚠️ Faça login para continuar.")
+        st.warning("Nenhum arquivo encontrado ou erro na API.")
