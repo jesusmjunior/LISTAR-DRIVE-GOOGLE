@@ -20,11 +20,14 @@ st.markdown("""
 """)
 
 # =========================
-# INPUTS DO USUÁRIO
+# INPUT DO USUÁRIO
 # =========================
 url_pasta = st.text_input("🔗 Insira o link público da pasta:")
 
-api_key = st.text_input("🔑 Insira sua API Key Pública do Google:", type="password")
+# =========================
+# SUA API KEY CONFIGURADA
+# =========================
+API_KEY = "AIzaSyAKibc0A3TerDdfQeZBLePxU01PbK_53Lw"
 
 # =========================
 # FUNÇÕES AUXILIARES
@@ -67,14 +70,14 @@ def listar_arquivos(folder_id, api_key):
 # EXECUÇÃO
 # =========================
 
-if url_pasta and api_key:
+if url_pasta:
     folder_id = extrair_folder_id(url_pasta)
     if not folder_id:
         st.error("⚠️ Link inválido! Verifique se é um link público de pasta do Google Drive.")
     else:
         st.success("✅ Pasta identificada! Clique abaixo para extrair os arquivos:")
         if st.button("📥 Extrair Arquivos"):
-            arquivos = listar_arquivos(folder_id, api_key)
+            arquivos = listar_arquivos(folder_id, API_KEY)
             if arquivos:
                 df = pd.DataFrame(arquivos)
                 st.success(f"✅ {len(arquivos)} itens encontrados!")
