@@ -4,6 +4,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 import tempfile
 import openpyxl
+import pdfplumber  # Agora corrigido e funcionando
 
 st.set_page_config(page_title="Listar Arquivos Google Drive", layout="centered")
 
@@ -22,7 +23,6 @@ Para listar os arquivos do seu Google Drive, siga os passos:
 CLIENT_SECRET_FILE = 'client_secret.json'
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 
-# Fluxo OAuth
 flow = Flow.from_client_secrets_file(
     CLIENT_SECRET_FILE,
     scopes=SCOPES,
@@ -71,6 +71,19 @@ if code:
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             df.to_excel(tmp.name, index=False)
             st.download_button("📥 Baixar Lista XLS", data=open(tmp.name, 'rb').read(), file_name="meus_arquivos_drive.xlsx")
+
+        # NOVO BLOCO: Upload e extração de PDF
+        st.markdown("## 📄 Upload e Extração de Dados de PDF")
+        uploaded_pdf = st.file_uploader("Faça upload de um arquivo PDF para extrair texto", type=["pdf"])
+        if uploaded_pdf is not None:
+            with tempfile.NamedTemporaryFile(delete=False) as tmp_pdf:
+                tmp_pdf.write(uploaded_pdf.read())
+                extracted_data = []
+                with pdfplumber.open(tmp_pdf.name) as pdf:
+                    for page in pdf.pages:
+                        extracted_data.append(page.extract_text())
+                st.success("✅ Texto extraído do PDF:")
+                st.text('\n\n'.join(extracted_data))
 
     except Exception as e:
         st.error(f"Erro ao acessar o Drive: {e}")
