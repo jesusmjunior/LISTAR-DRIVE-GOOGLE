@@ -1,31 +1,57 @@
 import streamlit as st
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
 import pandas as pd
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+import tempfile
+import openpyxl
 
-# α (Alfa) - Organização segura das credenciais
-st.title("📂 Lista de Arquivos do Google Drive")
+st.set_page_config(page_title="Listar Arquivos Google Drive", layout="centered")
 
-# Configuração do Google OAuth com Service Account (deve ser configurado no Streamlit Secrets)
-creds = service_account.Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"],
-    scopes=["https://www.googleapis.com/auth/drive.readonly"],
+st.title("📂 Google Drive - Listar Arquivos")
+st.markdown("""
+## 👋 Bem-vindo!
+
+Para listar os arquivos do seu Google Drive, siga os passos:
+
+1️⃣ Clique no botão abaixo para **Fazer Login com sua Conta Google**.  
+2️⃣ **Permita o acesso ao seu Google Drive**.  
+3️⃣ Seus arquivos serão listados abaixo!  
+""")
+
+# Configuração OAuth
+CLIENT_SECRET_FILE = 'client_secret.json'
+SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+
+# Fluxo OAuth
+flow = Flow.from_client_secrets_file(
+    CLIENT_SECRET_FILE,
+    scopes=SCOPES,
+    redirect_uri=st.experimental_get_query_params().get("redirect_uri", ["http://localhost:8501"])[0]
 )
 
-# β (Beta) - Função modular para listar arquivos
-@st.cache_data
-def listar_arquivos():
+auth_url, _ = flow.authorization_url(prompt='consent')
+
+st.write(f"### 🔑 [FAZER LOGIN COM GOOGLE]({auth_url})")
+
+code = st.text_input("👉 Depois de autorizar, copie e cole o código da URL aqui:")
+
+if code:
+    flow.fetch_token(code=code)
+    creds = flow.credentials
     try:
         service = build('drive', 'v3', credentials=creds)
         arquivos = []
-        pagina_token = None
+        page_token = None
+
+        st.info("🔄 Buscando arquivos do seu Drive...")
+
         while True:
-            resposta = service.files().list(
+            response = service.files().list(
                 pageSize=100,
                 fields="nextPageToken, files(id, name, mimeType, modifiedTime, webViewLink)",
-                pageToken=pagina_token
+                pageToken=page_token
             ).execute()
-            for arquivo in resposta.get('files', []):
+            for arquivo in response.get('files', []):
                 arquivos.append({
                     "Nome": arquivo.get('name'),
                     "ID": arquivo.get('id'),
@@ -33,24 +59,18 @@ def listar_arquivos():
                     "Última Modificação": arquivo.get('modifiedTime'),
                     "Link": arquivo.get('webViewLink')
                 })
-            pagina_token = resposta.get('nextPageToken', None)
-            if not pagina_token:
+            page_token = response.get('nextPageToken', None)
+            if not page_token:
                 break
-        return arquivos
-    except Exception as e:
-        st.error(f"Erro ao listar arquivos: {e}")
-        return []
 
-# Botão para iniciar
-if st.button("🔍 Listar Arquivos"):
-    # γ (Gama) - Chamada segura da API
-    arquivos = listar_arquivos()
-    if arquivos:
         df = pd.DataFrame(arquivos)
+        st.success(f"✅ {len(arquivos)} arquivos encontrados no seu Google Drive!")
         st.dataframe(df)
 
-        # ε (Epsilon) - Exportação para XLS
-        xls = df.to_excel(index=False, engine='openpyxl')
-        st.download_button("📥 Download XLS", data=xls, file_name='lista_arquivos.xlsx')
-    else:
-        st.warning("Nenhum arquivo encontrado ou erro na API.")
+        # Exportação XLS
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            df.to_excel(tmp.name, index=False)
+            st.download_button("📥 Baixar Lista XLS", data=open(tmp.name, 'rb').read(), file_name="meus_arquivos_drive.xlsx")
+
+    except Exception as e:
+        st.error(f"Erro ao acessar o Drive: {e}")
