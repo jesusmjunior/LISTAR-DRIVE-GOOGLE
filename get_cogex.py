@@ -2,8 +2,9 @@ import streamlit as st
 import pandas as pd
 import re
 import requests
-import fitz  # PyMuPDF
 from sympy import symbols, Piecewise
+from io import BytesIO
+from pdfminer.high_level import extract_text
 
 # =========================
 # CONFIGURAÇÃO DO APP
@@ -69,11 +70,8 @@ def listar_arquivos_recursivo(folder_id, api_key, path, estrutura):
 def extrair_texto_pdf(link):
     try:
         response = requests.get(link)
-        with open("temp.pdf", "wb") as f:
-            f.write(response.content)
-        doc = fitz.open("temp.pdf")
-        texto = "\n".join([page.get_text() for page in doc])
-        doc.close()
+        with BytesIO(response.content) as f:
+            texto = extract_text(f)
         return texto
     except:
         return "ERRO EXTRAÇÃO"
