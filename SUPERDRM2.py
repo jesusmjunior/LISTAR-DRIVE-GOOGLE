@@ -147,4 +147,3 @@ with tabs[1]:
     # DOWNLOAD CSV FILTRADO
     csv_filtered = df_sheets_filtered.to_csv(index=False)
     st.download_button("📥 Baixar Dados Filtrados CSV", csv_filtered, file_name="dados_filtrados_drm.csv")
-
