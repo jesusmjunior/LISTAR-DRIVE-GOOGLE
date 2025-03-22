@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import requests
 import re
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # =========================
 # CONFIGURAÇÃO DO DASHBOARD
@@ -31,28 +33,51 @@ df_estrutura = load_csv_sheet()
 st.success("✅ Dados carregados com sucesso!")
 
 # =========================
-# VISUALIZAÇÃO DOS DADOS EM PÁGINAS
+# FILTROS POR MUNICÍPIO E MÊS
 # =========================
-st.subheader("📋 Dados Consolidados 2025 - Publicação Web")
+st.sidebar.subheader("🔎 Filtros")
+municipios = df_estrutura['Path'].apply(lambda x: x.split('/')[-1]).unique().tolist()
+municipio_selecionado = st.sidebar.selectbox("Selecionar Município", options=["Todos"] + municipios)
 
-# Exibindo a tabela completa, mas paginada para 150 linhas por vez
-paginas = len(df_estrutura) // 150 + 1
-pagina_selecionada = st.slider("Selecione a página:", 1, paginas, 1)
-
-# Exibindo 150 linhas por página
-pagina_inicio = (pagina_selecionada - 1) * 150
-pagina_fim = pagina_selecionada * 150
-
-st.dataframe(df_estrutura.iloc[pagina_inicio:pagina_fim])
+meses = df_estrutura['Nome_Arquivo'].apply(lambda x: x.split('-')[1] if '-' in x else '').unique().tolist()
+mes_selecionado = st.sidebar.selectbox("Selecionar Mês", options=["Todos"] + meses)
 
 # =========================
-# DOWNLOAD CSV DOS DADOS PUBLICADOS
+# EXIBIR TABELA FILTRADA COM DECOMPOSIÇÃO DO NOME DO ARQUIVO
 # =========================
-csv_download = df_estrutura.to_csv(index=False)
-st.download_button("📥 Baixar Dados Publicados em CSV", csv_download, file_name="2025-03-22T12-12_export.csv")
+df_estrutura['Categoria'] = df_estrutura['Nome_Arquivo'].apply(lambda x: 'DRM' if 'DRM' in x else ('DECISÃO' if 'DECISÃO' in x else ('DECLARAÇÃO' if 'DECLARAÇÃO' in x else ('MINUTA' if 'MINUTA' in x else 'OUTRO'))))
+
+# Aplicando filtros
+if municipio_selecionado != "Todos":
+    df_estrutura = df_estrutura[df_estrutura['Path'].str.contains(municipio_selecionado)]
+if mes_selecionado != "Todos":
+    df_estrutura = df_estrutura[df_estrutura['Nome_Arquivo'].str.contains(mes_selecionado)]
 
 # =========================
-# FUNÇÃO DE SANITIZAÇÃO DE CAMPOS DO DRM
+# EXIBIR TABELA COM CATEGORIAS E DADOS
+# =========================
+st.subheader("📂 Estrutura das Pastas e Arquivos - Categorizados por Nome de Arquivo")
+
+st.dataframe(df_estrutura[['Nome_Arquivo', 'Categoria', 'Link']])
+
+# =========================
+# GRÁFICOS: CATEGORIAS E NÚMEROS
+# =========================
+st.subheader("📊 Gráfico: Distribuição por Categoria")
+
+# Contagem por categoria
+categoria_count = df_estrutura['Categoria'].value_counts()
+
+# Gerar gráfico de barras
+fig, ax = plt.subplots(figsize=(10, 6))
+sns.barplot(x=categoria_count.index, y=categoria_count.values, palette="Set2", ax=ax)
+ax.set_title('Distribuição de Arquivos por Categoria')
+ax.set_xlabel('Categoria')
+ax.set_ylabel('Número de Arquivos')
+st.pyplot(fig)
+
+# =========================
+# FUNÇÃO DE SANITIZAÇÃO DOS DADOS DO PDF
 # =========================
 def sanitizar_drm_texto(texto):
     dados = {}
@@ -67,36 +92,31 @@ def sanitizar_drm_texto(texto):
     return dados
 
 # =========================
-# TABELA PRINCIPAL + VISUALIZAR TXT
+# TABELA DE SANITIZAÇÃO COM DADOS DO PDF
 # =========================
-st.subheader("📂 Estrutura das Pastas e Arquivos - Apenas DRMs PDF")
-
+# Exibindo a categoria 'DRM' com sanitização
 painel_virtual = []
 
-for index, row in df_estrutura.iterrows():
+for index, row in df_estrutura[df_estrutura['Categoria'] == 'DRM'].iterrows():
     st.write(f"**📄 {row['Nome_Arquivo']}**")
-    st.write(f"📁 Path: {row['Path']} | 🗓️ Tipo: {row['Tipo']}")
-    if row['Tipo'] == "PDF":
-        st.markdown(f"[Abrir Link]({row['Link']})", unsafe_allow_html=True)
-    # Implementar função para processar o PDF e criar o .txt
-    # Caso seja o PDF, sanitizar os dados:
-    if row['Tipo'] == "PDF":
-        try:
-            response = requests.get(row['Link'])
-            texto_extraido = response.content.decode('latin1', errors='ignore')
-            dados_sanitizados = sanitizar_drm_texto(texto_extraido)
-            st.json(dados_sanitizados)
-            painel_virtual.append({
-                "Nome_Arquivo": row['Nome_Arquivo'],
-                "Path": row['Path'],
-                "Tipo": row['Tipo'],
-                **dados_sanitizados
-            })
-        except Exception as e:
-            st.error(f"Erro ao sanitizar dados: {e}")
+    st.write(f"📁 Path: {row['Path']} | 🗓️ Tipo: {row['Categoria']}")
+    st.markdown(f"[Abrir Link]({row['Link']})", unsafe_allow_html=True)
+    try:
+        response = requests.get(row['Link'])
+        texto_extraido = response.content.decode('latin1', errors='ignore')
+        dados_sanitizados = sanitizar_drm_texto(texto_extraido)
+        st.json(dados_sanitizados)
+        painel_virtual.append({
+            "Nome_Arquivo": row['Nome_Arquivo'],
+            "Path": row['Path'],
+            "Categoria": row['Categoria'],
+            **dados_sanitizados
+        })
+    except Exception as e:
+        st.error(f"Erro ao sanitizar dados: {e}")
 
 # =========================
-# DOWNLOAD CSV DOS DADOS SANITIZADOS
+# DOWNLOAD DOS DADOS SANITIZADOS
 # =========================
 if painel_virtual:
     df_virtual = pd.DataFrame(painel_virtual)
