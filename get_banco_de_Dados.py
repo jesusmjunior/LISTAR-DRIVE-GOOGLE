@@ -2,45 +2,37 @@ import streamlit as st
 import pandas as pd
 import re
 import requests
-import fitz  # PyMuPDF
-from sympy import symbols, Piecewise
+from io import BytesIO
+import os
 
-# =====================
-# CONFIGURAÇÃO INICIAL
-# =====================
+# =========================
+# CONFIGURAÇÃO DO APP
+# =========================
 st.set_page_config(page_title="📂 DRM Extractor - Google Drive", layout="wide")
 st.title("📂 DRM Extractor & Virtualization System")
 
 st.markdown("""
-### 🚀 Insira o link da pasta Google Drive ou carregue CSV com múltiplos links.
+### 🚀 Insira o link da pasta Google Drive.
 1️⃣ Pasta raiz: **PRESTAÇÃO DE CONTAS**
 2️⃣ Subpastas: Nome do Município e mês.
 3️⃣ Arquivos: DRM-(MÊS-ANO-SERVENTIA).pdf
 
-O sistema irá rastrear, extrair e virtualizar 100% dos dados dos DRM.
+O sistema irá rastrear, clonar 100% dos PDFs em .txt mantendo a hierarquia e virtualizar os dados dos DRM.
 """)
 
-# =====================
+# =========================
 # INPUT DO USUÁRIO
-# =====================
-input_type = st.radio("Selecione o tipo de entrada:", ("Link Único", "CSV com múltiplos links"))
+# =========================
+url_pasta = st.text_input("🔗 Insira o link público da pasta:")
 
-link_list = []
-if input_type == "Link Único":
-    url_pasta = st.text_input("🔗 Insira o link público da pasta:")
-    if url_pasta:
-        link_list.append(url_pasta)
-else:
-    uploaded_csv = st.file_uploader("📄 Carregue o arquivo CSV:", type=["csv"])
-    if uploaded_csv:
-        df_links = pd.read_csv(uploaded_csv)
-        link_list.extend(df_links.iloc[:, 0].tolist())
-
+# =========================
+# SUA API KEY CONFIGURADA
+# =========================
 API_KEY = "AIzaSyAKibc0A3TerDdfQeZBLePxU01PbK_53Lw"
 
-# =====================
+# =========================
 # FUNÇÕES AUXILIARES
-# =====================
+# =========================
 
 def extrair_folder_id(url):
     match = re.search(r'/folders/([a-zA-Z0-9_-]+)', url)
@@ -49,7 +41,7 @@ def extrair_folder_id(url):
     return None
 
 
-def listar_arquivos_recursivo(folder_id, api_key, path, estrutura):
+def listar_arquivos_recursivo(folder_id, api_key, path, estrutura, contador):
     url_base = "https://www.googleapis.com/drive/v3/files"
     params = {
         "q": f"'{folder_id}' in parents",
@@ -61,7 +53,8 @@ def listar_arquivos_recursivo(folder_id, api_key, path, estrutura):
         data = response.json()
         for file in data.get('files', []):
             if file.get('mimeType') == "application/vnd.google-apps.folder":
-                listar_arquivos_recursivo(file.get('id'), api_key, path + "/" + file.get('name'), estrutura)
+                listar_arquivos_recursivo(file.get('id'), api_key, path + "/" + file.get('name'), estrutura, contador)
+                contador['pastas'] += 1
             else:
                 estrutura.append({
                     "Path": path,
@@ -70,21 +63,30 @@ def listar_arquivos_recursivo(folder_id, api_key, path, estrutura):
                     "Link": file.get('webViewLink'),
                     "Tipo": "PDF" if file.get('name').endswith(".pdf") else "Outro"
                 })
+                contador['arquivos'] += 1
     else:
         st.error(f"Erro API: {response.text}")
 
 
-def extrair_texto_pdf(link):
+def clonar_pdf_para_txt_basico(link, nome_arquivo, path):
     try:
         response = requests.get(link)
-        with open("temp.pdf", "wb") as f:
-            f.write(response.content)
-        doc = fitz.open("temp.pdf")
-        texto = "\n".join([page.get_text() for page in doc])
-        doc.close()
-        return texto
+        pasta_destino = f"txt_virtualizados/{path}"
+        if not os.path.exists(pasta_destino):
+            os.makedirs(pasta_destino)
+        with open(f"{pasta_destino}/{nome_arquivo}.pdf", "wb") as pdf_file:
+            pdf_file.write(response.content)
+        return "CLONADO COM SUCESSO"
     except:
-        return "ERRO EXTRAÇÃO"
+        return "ERRO CLONAGEM"
+
+
+def ler_txt_virtual(path, nome_arquivo):
+    try:
+        with open(f"txt_virtualizados/{path}/{nome_arquivo}.txt", "r", encoding="utf-8") as txt_file:
+            return txt_file.read()
+    except:
+        return "ERRO LEITURA"
 
 
 def aplicar_regex_campos(texto):
@@ -100,52 +102,81 @@ def aplicar_regex_campos(texto):
         campos[key] = campos[key].group(1).strip() if campos[key] else ""
     return campos
 
-# =====================
-# MODELO FUZZY (PERTINÊNCIA)
-# =====================
+# =========================
+# ABA PARA CLONAGEM E LEITURA =========================
 
-x = symbols('x')
-pertinencia_formula = Piecewise((1.0, x >= 0.9), (0.7, (x < 0.9) & (x >= 0.6)), (0.0, x < 0.6))
-st.latex(r"\mu_{DRM}(x) = \begin{cases} 1.0 & \text{se } x \geq 0.9 \\ 0.7 & \text{se } 0.6 \leq x < 0.9 \\ 0.0 & \text{se } x < 0.6 \end{cases}")
+tabs = st.tabs(["🔄 Mapear & Clonar PDFs", "📥 Ler & Organizar Dados TXT"])
 
-# =====================
-# PROCESSAMENTO PRINCIPAL
-# =====================
-
-if link_list:
-    estrutura = []
-    dados_extraidos = []
-    for link in link_list:
-        folder_id = extrair_folder_id(link)
+# =========================
+# ABA 1 - Mapeamento e Clonagem
+# =========================
+with tabs[0]:
+    if url_pasta:
+        folder_id = extrair_folder_id(url_pasta)
         if folder_id:
-            listar_arquivos_recursivo(folder_id, API_KEY, "PRESTAÇÃO DE CONTAS", estrutura)
+            estrutura = []
+            contador = {'pastas': 0, 'arquivos': 0}
+            listar_arquivos_recursivo(folder_id, API_KEY, "PRESTAÇÃO_DE_CONTAS", estrutura, contador)
+            df_estrutura = pd.DataFrame(estrutura)
+            st.success(f"🎯 {contador['pastas']} pastas e {contador['arquivos']} arquivos encontrados!")
+            st.dataframe(df_estrutura)
 
-    df_estrutura = pd.DataFrame(estrutura)
-    st.success(f"🎯 {len(df_estrutura)} arquivos encontrados e organizados!")
-    st.dataframe(df_estrutura)
+            # Download estrutura geral
+            csv1 = df_estrutura.to_csv(index=False)
+            st.download_button("📥 Baixar Estrutura Geral CSV", csv1, file_name="estrutura_geral_completa.csv")
 
-    st.write("### 🧩 Iniciando Extração de Dados...")
+            st.write("### 🧩 Clonando PDFs...")
 
-    for index, row in df_estrutura.iterrows():
-        st.write(f"🔍 Processando: {row['Nome_Arquivo']}")
-        if row['Tipo'] == "PDF":
-            texto = extrair_texto_pdf(row['Link'])
-            campos = aplicar_regex_campos(texto)
-            pertinencia = 1.0 if campos['Receita_Bruta'] != "" else 0.7
-            dados_extraidos.append({
-                "Path": row['Path'],
-                "Nome_Arquivo": row['Nome_Arquivo'],
-                "Link": row['Link'],
-                **campos,
-                "Texto_Completo": texto,
-                "Pertinencia": pertinencia
-            })
+            status_clonagem = []
+            for index, row in df_estrutura.iterrows():
+                st.write(f"🔍 Clonando: {row['Nome_Arquivo']}")
+                if row['Tipo'] == "PDF":
+                    nome_limpo = row['Nome_Arquivo'].replace(".pdf", "")
+                    path_sanitizado = row['Path'].replace("/", "_").replace(" ", "_")
+                    resultado = clonar_pdf_para_txt_basico(row['Link'], nome_limpo, path_sanitizado)
+                    status_clonagem.append({
+                        "Nome_Arquivo": row['Nome_Arquivo'],
+                        "Path": row['Path'],
+                        "Status_Clonagem": resultado
+                    })
 
-    df_final = pd.DataFrame(dados_extraidos)
-    st.write("### 📄 Banco Virtual de Dados Completos:")
-    st.dataframe(df_final)
+            df_clonagem = pd.DataFrame(status_clonagem)
+            st.write("### 📄 Status da Clonagem dos PDFs:")
+            st.dataframe(df_clonagem)
 
-    csv1 = df_estrutura.to_csv(index=False)
-    csv2 = df_final.to_csv(index=False)
-    st.download_button("📥 Baixar Estrutura Geral CSV", csv1, file_name="estrutura_geral.csv")
-    st.download_button("📥 Baixar Dados Extraídos CSV", csv2, file_name="dados_extraidos.csv")
+            csv2 = df_clonagem.to_csv(index=False)
+            st.download_button("📥 Baixar Status da Clonagem CSV", csv2, file_name="status_clonagem.csv")
+
+# =========================
+# ABA 2 - Leitura e Organização
+# =========================
+with tabs[1]:
+    st.write("### 📥 Leitura dos Arquivos .txt Clonados...")
+
+    dados_extraidos = []
+    if os.path.exists("txt_virtualizados"):
+        for root, dirs, files in os.walk("txt_virtualizados"):
+            for file in files:
+                if file.endswith(".txt"):
+                    nome_arquivo = file.replace(".txt", "")
+                    path_relativo = root.replace("txt_virtualizados/", "")
+                    texto = ler_txt_virtual(path_relativo, nome_arquivo)
+                    if texto and texto != "ERRO LEITURA":
+                        campos = aplicar_regex_campos(texto)
+                        pertinencia = 1.0 if campos['Receita_Bruta'] != "" else 0.7
+                        dados_extraidos.append({
+                            "Nome_Arquivo": nome_arquivo,
+                            "Pasta_Origem": path_relativo,
+                            **campos,
+                            "Texto_Clonado": texto,
+                            "Pertinencia": pertinencia
+                        })
+
+        df_final = pd.DataFrame(dados_extraidos)
+        st.write("### 📊 Painel de Dados Extraídos dos .txt:")
+        st.dataframe(df_final)
+
+        csv3 = df_final.to_csv(index=False)
+        st.download_button("📥 Baixar Dados Extraídos CSV", csv3, file_name="dados_extraidos.csv")
+    else:
+        st.warning("Nenhum arquivo TXT clonado encontrado. Execute a etapa de clonagem primeiro!")
