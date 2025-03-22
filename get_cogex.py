@@ -5,6 +5,7 @@ import requests
 from sympy import symbols, Piecewise
 from io import BytesIO
 from pdfminer.high_level import extract_text
+import os
 
 # =========================
 # CONFIGURAÇÃO DO APP
@@ -90,6 +91,28 @@ def aplicar_regex_campos(texto):
         campos[key] = campos[key].group(1).strip() if campos[key] else ""
     return campos
 
+
+def salvar_txt_virtual(link, nome_arquivo):
+    try:
+        response = requests.get(link)
+        with BytesIO(response.content) as f:
+            texto = extract_text(f)
+        if not os.path.exists("txt_virtualizados"):
+            os.makedirs("txt_virtualizados")
+        with open(f"txt_virtualizados/{nome_arquivo}.txt", "w", encoding="utf-8") as txt_file:
+            txt_file.write(texto)
+        return texto
+    except:
+        return "ERRO EXTRAÇÃO"
+
+
+def ler_txt_virtual(nome_arquivo):
+    try:
+        with open(f"txt_virtualizados/{nome_arquivo}.txt", "r", encoding="utf-8") as txt_file:
+            return txt_file.read()
+    except:
+        return "ERRO LEITURA"
+
 # =========================
 # MODELO FUZZY (PERTINÊNCIA)
 # =========================
@@ -111,13 +134,15 @@ if url_pasta:
         st.success(f"🎯 {len(df_estrutura)} arquivos encontrados e organizados!")
         st.dataframe(df_estrutura)
 
-        st.write("### 🧩 Iniciando Extração de Dados...")
+        st.write("### 🧩 Iniciando Extração e Virtualização em .txt...")
 
         dados_extraidos = []
+        painel_dados = []
         for index, row in df_estrutura.iterrows():
             st.write(f"🔍 Processando: {row['Nome_Arquivo']}")
             if row['Tipo'] == "PDF":
-                texto = extrair_texto_pdf(row['Link'])
+                nome_limpo = row['Nome_Arquivo'].replace(".pdf", "")
+                texto = salvar_txt_virtual(row['Link'], nome_limpo)
                 campos = aplicar_regex_campos(texto)
                 pertinencia = 1.0 if campos['Receita_Bruta'] != "" else 0.7
                 dados_extraidos.append({
@@ -128,12 +153,24 @@ if url_pasta:
                     "Texto_Completo": texto,
                     "Pertinencia": pertinencia
                 })
+                painel_dados.append({
+                    "Municipio": row['Path'].split("/")[-1],
+                    "Mes_Ano": row['Path'].split("/")[-2] if len(row['Path'].split("/")) > 2 else "",
+                    "Nome_Arquivo": row['Nome_Arquivo'],
+                    "Texto_Clonado": texto
+                })
 
         df_final = pd.DataFrame(dados_extraidos)
+        df_painel = pd.DataFrame(painel_dados)
         st.write("### 📄 Banco Virtual de Dados Completos:")
         st.dataframe(df_final)
 
+        st.write("### 📊 Painel Informacional Consolidado:")
+        st.dataframe(df_painel)
+
         csv1 = df_estrutura.to_csv(index=False)
         csv2 = df_final.to_csv(index=False)
+        csv3 = df_painel.to_csv(index=False)
         st.download_button("📥 Baixar Estrutura Geral CSV", csv1, file_name="estrutura_geral.csv")
         st.download_button("📥 Baixar Dados Extraídos CSV", csv2, file_name="dados_extraidos.csv")
+        st.download_button("📥 Baixar Painel Consolidado CSV", csv3, file_name="painel_consolidado.csv")
