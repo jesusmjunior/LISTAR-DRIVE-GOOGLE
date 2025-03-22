@@ -24,7 +24,7 @@ O sistema irá rastrear, extrair e virtualizar 100% dos dados dos DRM.
 # =========================
 # INPUT DO USUÁRIO
 # =========================
-url_pasta = st.text_input("🔗https://drive.google.com/drive/folders/1xx-o5LrfFrkUwPCSmZoh2WCaUOtfL2EW?usp=sharing")
+url_pasta = st.text_input("🔗 Insira o link público da pasta:")
 
 # =========================
 # SUA API KEY CONFIGURADA
@@ -75,7 +75,7 @@ def extrair_texto_pdf(link):
             texto = ""
             for page in reader.pages:
                 texto += page.extract_text() or ""
-        return texto
+        return texto.strip()
     except:
         return "ERRO EXTRAÇÃO"
 
@@ -106,7 +106,7 @@ def salvar_txt_virtual(link, nome_arquivo):
             os.makedirs("txt_virtualizados")
         with open(f"txt_virtualizados/{nome_arquivo}.txt", "w", encoding="utf-8") as txt_file:
             txt_file.write(texto)
-        return texto
+        return texto.strip()
     except:
         return "ERRO EXTRAÇÃO"
 
@@ -137,25 +137,38 @@ if url_pasta:
         painel_dados = []
         for index, row in df_estrutura.iterrows():
             st.write(f"🔍 Processando: {row['Nome_Arquivo']}")
+            status_extracao = "Falha"
             if row['Tipo'] == "PDF":
                 nome_limpo = row['Nome_Arquivo'].replace(".pdf", "")
                 texto = salvar_txt_virtual(row['Link'], nome_limpo)
-                campos = aplicar_regex_campos(texto)
-                pertinencia = 1.0 if campos['Receita_Bruta'] != "" else 0.7
-                dados_extraidos.append({
-                    "Path": row['Path'],
-                    "Nome_Arquivo": row['Nome_Arquivo'],
-                    "Link": row['Link'],
-                    **campos,
-                    "Texto_Completo": texto,
-                    "Pertinencia": pertinencia
-                })
-                painel_dados.append({
-                    "Municipio": row['Path'].split("/")[-1],
-                    "Mes_Ano": row['Path'].split("/")[-2] if len(row['Path'].split("/")) > 2 else "",
-                    "Nome_Arquivo": row['Nome_Arquivo'],
-                    "Texto_Clonado": texto
-                })
+                if texto and texto != "ERRO EXTRAÇÃO":
+                    campos = aplicar_regex_campos(texto)
+                    pertinencia = 1.0 if campos['Receita_Bruta'] != "" else 0.7
+                    status_extracao = "Sucesso"
+                    dados_extraidos.append({
+                        "Path": row['Path'],
+                        "Nome_Arquivo": row['Nome_Arquivo'],
+                        "Link": row['Link'],
+                        **campos,
+                        "Texto_Completo": texto,
+                        "Pertinencia": pertinencia,
+                        "Status_Extracao": status_extracao
+                    })
+                    painel_dados.append({
+                        "Municipio": row['Path'].split("/")[-1],
+                        "Mes_Ano": row['Path'].split("/")[-2] if len(row['Path'].split("/")) > 2 else "",
+                        "Nome_Arquivo": row['Nome_Arquivo'],
+                        "Texto_Clonado": texto,
+                        "Status_Extracao": status_extracao
+                    })
+                else:
+                    painel_dados.append({
+                        "Municipio": row['Path'].split("/")[-1],
+                        "Mes_Ano": row['Path'].split("/")[-2] if len(row['Path'].split("/")) > 2 else "",
+                        "Nome_Arquivo": row['Nome_Arquivo'],
+                        "Texto_Clonado": "",
+                        "Status_Extracao": status_extracao
+                    })
 
         df_final = pd.DataFrame(dados_extraidos)
         df_painel = pd.DataFrame(painel_dados)
