@@ -3,8 +3,8 @@ import pandas as pd
 import re
 import requests
 from io import BytesIO
-import PyPDF2
 import os
+from pdf2text import extract_text_from_pdf
 
 # =========================
 # CONFIGURAÇÃO DO APP
@@ -70,11 +70,7 @@ def listar_arquivos_recursivo(folder_id, api_key, path, estrutura):
 def extrair_texto_pdf(link):
     try:
         response = requests.get(link)
-        with BytesIO(response.content) as f:
-            reader = PyPDF2.PdfReader(f)
-            texto = ""
-            for page in reader.pages:
-                texto += page.extract_text() or ""
+        texto = extract_text_from_pdf(BytesIO(response.content))
         return texto
     except:
         return "ERRO EXTRAÇÃO"
@@ -97,11 +93,7 @@ def aplicar_regex_campos(texto):
 def salvar_txt_virtual(link, nome_arquivo):
     try:
         response = requests.get(link)
-        with BytesIO(response.content) as f:
-            reader = PyPDF2.PdfReader(f)
-            texto = ""
-            for page in reader.pages:
-                texto += page.extract_text() or ""
+        texto = extract_text_from_pdf(BytesIO(response.content))
         if not os.path.exists("txt_virtualizados"):
             os.makedirs("txt_virtualizados")
         with open(f"txt_virtualizados/{nome_arquivo}.txt", "w", encoding="utf-8") as txt_file:
