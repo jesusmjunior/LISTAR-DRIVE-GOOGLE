@@ -5,100 +5,67 @@ import requests
 # =========================
 # CONFIGURAÇÃO DO DASHBOARD
 # =========================
-st.set_page_config(page_title="📊 Dashboard DRM Consolidado", layout="wide")
-st.title("📊 Painel Consolidado de DRMs - Google Sheets CSV Publicado")
+st.set_page_config(page_title="\ud83d\udcca Dashboard DRMs Google Sheets 2025", layout="wide")
+st.title("\ud83d\udcca Painel Consolidado de DRMs - Dados Públicos 2025")
 
 # =========================
 # GOOGLE SHEETS CONFIGURAÇÃO
 # =========================
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9wDOFBPvRLOcGhOUUuX9UKRkned5Fbgg9fzF6LfkiEMpmhovcJkG215YPWmprHnOwgrAA4n-FYD2v/pub?output=csv"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSOJ9l-L3wSq6ZMAAfIkKEIBVVAN5BNRcy3GZGoC0_Reb3dsBmhLFgGJE1hAF5MOnM7iwOTwdl0VkqF/pub?gid=901274610&single=true&output=csv"
 
 # =========================
 # LEITURA DIRETA DO CSV PÚBLICO
 # =========================
 @st.cache_data
 def load_csv_sheet():
-    df_estrutura = pd.read_csv(CSV_URL)
-    return df_estrutura
-
-st.sidebar.success("✅ Lendo diretamente do CSV Público Consolidado 2025")
-df_estrutura = load_csv_sheet()
+    df = pd.read_csv(CSV_URL)
+    return df
 
 # =========================
-# CONTADORES RESUMIDOS
+# CARREGANDO OS DADOS DO GOOGLE SHEETS
 # =========================
-st.subheader("📌 Resumo Geral")
-total_pastas = df_estrutura['Path'].nunique()
-total_arquivos = len(df_estrutura)
-total_drm = df_estrutura[df_estrutura['Tipo'] == 'PDF'].shape[0]
+df = load_csv_sheet()
 
-col1, col2, col3 = st.columns(3)
-col1.metric("Pastas Únicas", total_pastas)
-col2.metric("Total Arquivos", total_arquivos)
-col3.metric("Total DRMs", total_drm)
+st.success("\u2705 Dados carregados com sucesso!")
 
 # =========================
-# FILTRO POR MUNICÍPIO E MÊS E SOMENTE PDF
+# EXIBIR TOTAL DE DRMs
 # =========================
-st.sidebar.subheader("🔎 Filtros")
-municipios = df_estrutura['Path'].apply(lambda x: x.split('/')[-1]).unique().tolist()
-municipio_selecionado = st.sidebar.selectbox("Selecionar Município", options=["Todos"] + municipios)
-
-meses = df_estrutura['Nome_Arquivo'].apply(lambda x: x.split('-')[1] if '-' in x else '').unique().tolist()
-mes_selecionado = st.sidebar.selectbox("Selecionar Mês", options=["Todos"] + meses)
-
-# Filtrando apenas PDF puro DRM
-df_drm = df_estrutura[df_estrutura['Tipo'] == 'PDF']
-df_display = df_drm.copy()
-df_display['Link_Clicavel'] = df_display['Link'].apply(lambda x: f"[Abrir Link]({x})")
-
-# Aplicando filtros
-if municipio_selecionado != "Todos":
-    df_display = df_display[df_display['Path'].str.contains(municipio_selecionado)]
-if mes_selecionado != "Todos":
-    df_display = df_display[df_display['Nome_Arquivo'].str.contains(mes_selecionado)]
-
-# Extrair Município, Mês, Ano
-df_display['Município'] = df_display['Path'].apply(lambda x: x.split('/')[-1])
-df_display['Mês'] = df_display['Nome_Arquivo'].apply(lambda x: x.split('-')[1] if '-' in x else '')
-df_display['Ano'] = df_display['Nome_Arquivo'].apply(lambda x: x.split('-')[2] if len(x.split('-')) > 2 else '')
+total_drm = df[df['Nome_Arquivo'].str.contains('DRM', na=False)].shape[0]
+st.markdown(f"\ud83c\udf89 **Total de DRMs encontrados:** {total_drm}")
 
 # =========================
-# TABELA PRINCIPAL + VISUALIZAR TXT
+# EXIBIR TABELA COMPLETA COM OS CAMPOS NOVOS
 # =========================
-st.subheader("📂 Estrutura das Pastas e Arquivos - Apenas DRMs PDF")
+st.subheader("\ud83d\udcc2 Estrutura Completa das Pastas e Arquivos")
 
-painel_virtual = []
+# Filtro direto por nome do arquivo (campo livre)
+st.write("\ud83d\udd0e **Filtrar por Nome do Arquivo (opcional):**")
+filtro_nome = st.text_input("Digite parte do nome do arquivo:", "")
 
-for index, row in df_display.iterrows():
-    st.write(f"**📄 {row['Nome_Arquivo']}**")
-    st.write(f"📁 Município: {row['Município']} | 🗓️ Mês: {row['Mês']} | Ano: {row['Ano']}")
-    st.markdown(row['Link_Clicavel'], unsafe_allow_html=True)
-    if st.button(f"📥 Converter e Exibir TXT - {row['Nome_Arquivo']}", key=f"btn_{index}"):
-        try:
-            response = requests.get(row['Link'])
-            texto_extraido = response.content.decode('latin1', errors='ignore')
-            st.text_area(f"📄 Conteúdo TXT - {row['Nome_Arquivo']}", value=texto_extraido, height=300)
-            painel_virtual.append({
-                "Município": row['Município'],
-                "Mês": row['Mês'],
-                "Ano": row['Ano'],
-                "Nome_Arquivo": row['Nome_Arquivo'],
-                "Texto": texto_extraido
-            })
-            st.download_button("📄 Baixar TXT", data=texto_extraido, file_name=f"{row['Nome_Arquivo'].replace('.pdf', '')}.txt")
-        except Exception as e:
-            st.error(f"Erro ao extrair texto: {e}")
+# Aplicar filtro
+if filtro_nome:
+    df_filtrado = df[df['Nome_Arquivo'].str.contains(filtro_nome, case=False, na=False)]
+else:
+    df_filtrado = df.copy()
+
+st.dataframe(df_filtrado[['Nome_Arquivo', 'Munic\u00edpio', 'M\u00eas', 'Ano', 'Estrutura_Nome', 'Link', 'Tipo']])
 
 # =========================
-# DOWNLOAD CSV CONSOLIDADO + BANCO VIRTUAL TXT
+# GR\u00c1FICOS DIN\u00c2MICOS
 # =========================
-csv_download = df_display.to_csv(index=False)
-st.download_button("📥 Baixar Estrutura Consolidada CSV", csv_download, file_name="estrutura_consolidada_DRM.csv")
+st.subheader("\ud83d\udcca Distribui\u00e7\u00e3o por Munic\u00edpio")
+st.bar_chart(df_filtrado['Munic\u00edpio'].value_counts())
 
-if painel_virtual:
-    df_virtual = pd.DataFrame(painel_virtual)
-    st.subheader("📑 Banco Virtual Consolidado em TXT")
-    st.dataframe(df_virtual)
-    csv_virtual = df_virtual.to_csv(index=False)
-    st.download_button("📥 Baixar Banco Virtual TXT Consolidado", csv_virtual, file_name="banco_virtual_DRM.csv")
+st.subheader("\ud83d\udcca Distribui\u00e7\u00e3o por M\u00eas")
+st.bar_chart(df_filtrado['M\u00eas'].value_counts())
+
+st.subheader("\ud83d\udcca Distribui\u00e7\u00e3o por Ano")
+st.bar_chart(df_filtrado['Ano'].value_counts())
+
+# =========================
+# DOWNLOAD DOS DADOS FILTRADOS
+# =========================
+st.subheader("\ud83d\udcc9 Download dos Dados Filtrados")
+csv_filtered = df_filtrado.to_csv(index=False)
+st.download_button("\ud83d\udcc4 Baixar CSV Filtrado", csv_filtered, file_name="dados_filtrados_drm.csv")
