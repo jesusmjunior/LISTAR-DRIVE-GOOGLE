@@ -31,48 +31,41 @@ df_estrutura = load_csv_sheet()
 st.success("✅ Dados carregados com sucesso!")
 
 # =========================
-# FILTROS POR MUNICÍPIO E MÊS
+# EXIBIR A MEDALHA E ÍCONES DINÂMICOS
 # =========================
-st.sidebar.subheader("🔎 Filtros")
-municipios = df_estrutura['Path'].apply(lambda x: x.split('/')[-1]).unique().tolist()
-municipio_selecionado = st.sidebar.selectbox("Selecionar Município", options=["Todos"] + municipios)
-
-meses = df_estrutura['Nome_Arquivo'].apply(lambda x: x.split('-')[1] if '-' in x else '').unique().tolist()
-mes_selecionado = st.sidebar.selectbox("Selecionar Mês", options=["Todos"] + meses)
+total_drm = df_estrutura[df_estrutura['Nome_Arquivo'].str.contains('DRM')].shape[0]
+st.markdown(f"🎉 **Total de DRMs encontrados:** {total_drm}")
 
 # =========================
 # EXIBIR TABELA FILTRADA COM DECOMPOSIÇÃO DO NOME DO ARQUIVO
 # =========================
 df_estrutura['Categoria'] = df_estrutura['Nome_Arquivo'].apply(lambda x: 'DRM' if 'DRM' in x else ('DECISÃO' if 'DECISÃO' in x else ('DECLARAÇÃO' if 'DECLARAÇÃO' in x else ('MINUTA' if 'MINUTA' in x else 'OUTRO'))))
 
-# Aplicando filtros
-if municipio_selecionado != "Todos":
-    df_estrutura = df_estrutura[df_estrutura['Path'].str.contains(municipio_selecionado)]
-if mes_selecionado != "Todos":
-    df_estrutura = df_estrutura[df_estrutura['Nome_Arquivo'].str.contains(mes_selecionado)]
+# Adicionando as colunas para município, mês, e ano, e verificando se o arquivo foi entregue em janeiro ou fevereiro
+df_estrutura['Município'] = df_estrutura['Path'].apply(lambda x: x.split('/')[-1])
+df_estrutura['Mês'] = df_estrutura['Nome_Arquivo'].apply(lambda x: x.split('-')[1] if '-' in x else '')
+df_estrutura['Ano'] = df_estrutura['Nome_Arquivo'].apply(lambda x: x.split('-')[2] if len(x.split('-')) > 2 else '')
+df_estrutura['Mês_Entrega'] = df_estrutura['Nome_Arquivo'].apply(lambda x: 'Janeiro' if '01' in x else ('Fevereiro' if '02' in x else 'Outro'))
 
 # =========================
 # EXIBIR TABELA COM CATEGORIAS E DADOS
 # =========================
 st.subheader("📂 Estrutura das Pastas e Arquivos - Categorizados por Nome de Arquivo")
-
-# Adicionando as colunas para município, mês, e verificando se o arquivo foi entregue em janeiro ou fevereiro
-df_estrutura['Município'] = df_estrutura['Path'].apply(lambda x: x.split('/')[-1])
-
-df_estrutura['Mês_Entrega'] = df_estrutura['Nome_Arquivo'].apply(lambda x: 'Janeiro' if '01' in x else ('Fevereiro' if '02' in x else 'Outro'))
-
-st.dataframe(df_estrutura[['Nome_Arquivo', 'Categoria', 'Município', 'Mês_Entrega', 'Link']])
+st.dataframe(df_estrutura[['Nome_Arquivo', 'Categoria', 'Município', 'Mês_Entrega', 'Mês', 'Ano', 'Link']])
 
 # =========================
 # GRÁFICOS: CATEGORIAS E NÚMEROS
 # =========================
 st.subheader("📊 Gráfico: Distribuição por Categoria")
 
-# Contagem por categoria
+# Gráfico de Distribuição por Categoria
 categoria_count = df_estrutura['Categoria'].value_counts()
-
-# Gerar gráfico de barras usando gráfico nativo do Streamlit
 st.bar_chart(categoria_count)
+
+# Gráfico de Distribuição por Mês de Entrega
+st.subheader("📊 Gráfico: Distribuição de Arquivos por Mês de Entrega")
+mes_entrega_count = df_estrutura['Mês_Entrega'].value_counts()
+st.bar_chart(mes_entrega_count)
 
 # =========================
 # FUNÇÃO DE SANITIZAÇÃO DOS DADOS DO PDF
@@ -92,7 +85,6 @@ def sanitizar_drm_texto(texto):
 # =========================
 # TABELA DE SANITIZAÇÃO COM DADOS DO PDF
 # =========================
-# Exibindo a categoria 'DRM' com sanitização
 painel_virtual = []
 
 for index, row in df_estrutura[df_estrutura['Categoria'] == 'DRM'].iterrows():
@@ -109,6 +101,8 @@ for index, row in df_estrutura[df_estrutura['Categoria'] == 'DRM'].iterrows():
             "Path": row['Path'],
             "Categoria": row['Categoria'],
             "Mês_Entrega": row['Mês_Entrega'],
+            "Mês": row['Mês'],
+            "Ano": row['Ano'],
             **dados_sanitizados
         })
     except Exception as e:
