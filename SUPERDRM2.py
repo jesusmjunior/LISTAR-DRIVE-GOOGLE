@@ -41,7 +41,7 @@ st.markdown(f"🎉 **Total de DRMs encontrados:** {total_drm}")
 # =========================
 df_estrutura['Categoria'] = df_estrutura['Nome_Arquivo'].apply(lambda x: 'DRM' if 'DRM' in x else ('DECISÃO' if 'DECISÃO' in x else ('DECLARAÇÃO' if 'DECLARAÇÃO' in x else ('MINUTA' if 'MINUTA' in x else 'OUTRO'))))
 
-# Adicionando as colunas para município, mês, e ano, e verificando se o arquivo foi entregue em janeiro ou fevereiro
+# Adicionando as colunas para município, mês, e verificando se o arquivo foi entregue em janeiro ou fevereiro
 df_estrutura['Município'] = df_estrutura['Path'].apply(lambda x: x.split('/')[-1])
 df_estrutura['Mês'] = df_estrutura['Nome_Arquivo'].apply(lambda x: x.split('-')[1] if '-' in x else '')
 df_estrutura['Ano'] = df_estrutura['Nome_Arquivo'].apply(lambda x: x.split('-')[2] if len(x.split('-')) > 2 else '')
@@ -51,7 +51,16 @@ df_estrutura['Mês_Entrega'] = df_estrutura['Nome_Arquivo'].apply(lambda x: 'Jan
 # EXIBIR TABELA COM CATEGORIAS E DADOS
 # =========================
 st.subheader("📂 Estrutura das Pastas e Arquivos - Categorizados por Nome de Arquivo")
-st.dataframe(df_estrutura[['Nome_Arquivo', 'Categoria', 'Município', 'Mês_Entrega', 'Mês', 'Ano', 'Link']])
+
+# Exibir os dados com filtro por coluna
+st.write("🔎 **Filtragem de dados**")
+filtro_nome = st.text_input("🔍 Filtrar por nome do arquivo DRM:", "")
+
+# Filtrando os dados conforme o nome
+df_filtrado = df_estrutura[df_estrutura['Nome_Arquivo'].str.contains(filtro_nome, case=False)]
+
+# Exibir a tabela filtrada
+st.dataframe(df_filtrado[['Nome_Arquivo', 'Categoria', 'Município', 'Mês_Entrega', 'Mês', 'Ano', 'Link']])
 
 # =========================
 # GRÁFICOS: CATEGORIAS E NÚMEROS
@@ -59,12 +68,12 @@ st.dataframe(df_estrutura[['Nome_Arquivo', 'Categoria', 'Município', 'Mês_Entr
 st.subheader("📊 Gráfico: Distribuição por Categoria")
 
 # Gráfico de Distribuição por Categoria
-categoria_count = df_estrutura['Categoria'].value_counts()
+categoria_count = df_filtrado['Categoria'].value_counts()
 st.bar_chart(categoria_count)
 
 # Gráfico de Distribuição por Mês de Entrega
 st.subheader("📊 Gráfico: Distribuição de Arquivos por Mês de Entrega")
-mes_entrega_count = df_estrutura['Mês_Entrega'].value_counts()
+mes_entrega_count = df_filtrado['Mês_Entrega'].value_counts()
 st.bar_chart(mes_entrega_count)
 
 # =========================
@@ -87,7 +96,7 @@ def sanitizar_drm_texto(texto):
 # =========================
 painel_virtual = []
 
-for index, row in df_estrutura[df_estrutura['Categoria'] == 'DRM'].iterrows():
+for index, row in df_filtrado[df_filtrado['Categoria'] == 'DRM'].iterrows():
     st.write(f"**📄 {row['Nome_Arquivo']}**")
     st.write(f"📁 Path: {row['Path']} | 🗓️ Tipo: {row['Categoria']} | 📅 Entrega: {row['Mês_Entrega']}")
     st.markdown(f"[Abrir Link]({row['Link']})", unsafe_allow_html=True)
@@ -117,27 +126,3 @@ if painel_virtual:
     st.dataframe(df_virtual)
     csv_virtual = df_virtual.to_csv(index=False)
     st.download_button("📥 Baixar Banco Virtual Sanitizado CSV", csv_virtual, file_name="banco_virtual_DRM_sanitizado.csv")
-
-# =========================
-# ABA ADICIONAL - FILTRO DE DRMS DO GOOGLE SHEET
-# =========================
-tabs = st.tabs(["📊 Painel Consolidado", "🔍 Filtro de DRMs do Google Sheets"])
-
-with tabs[1]:
-    st.subheader("🔎 Filtragem de Dados DRM")
-    st.write("Com base no nome do arquivo e na estrutura de dados dos DRMs.")
-
-    filtro_nome = st.text_input("🔍 Filtrar por nome do arquivo DRM:", "")
-
-    # Leitura do Google Sheets
-    df_sheets = pd.read_csv(CSV_URL)
-
-    # Filtragem
-    df_sheets_filtered = df_sheets[df_sheets['Nome_Arquivo'].str.contains(filtro_nome, case=False)]
-
-    # Exibir dados filtrados
-    st.dataframe(df_sheets_filtered)
-
-    # DOWNLOAD CSV FILTRADO
-    csv_filtered = df_sheets_filtered.to_csv(index=False)
-    st.download_button("📥 Baixar Dados Filtrados CSV", csv_filtered, file_name="dados_filtrados_drm.csv")
