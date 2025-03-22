@@ -18,7 +18,7 @@ st.markdown("""
 2️⃣ Subpastas: Nome do Município e mês.
 3️⃣ Arquivos: DRM-(MÊS-ANO-SERVENTIA).pdf
 
-O sistema irá rastrear, extrair e virtualizar 100% dos dados dos DRM.
+O sistema irá rastrear, clonar 100% dos PDFs em .txt e virtualizar os dados dos DRM.
 """)
 
 # =========================
@@ -67,7 +67,7 @@ def listar_arquivos_recursivo(folder_id, api_key, path, estrutura):
         st.error(f"Erro API: {response.text}")
 
 
-def extrair_texto_pdf(link):
+def clonar_pdf_para_txt(link, nome_arquivo):
     try:
         response = requests.get(link)
         with BytesIO(response.content) as f:
@@ -75,9 +75,21 @@ def extrair_texto_pdf(link):
             texto = ""
             for page in reader.pages:
                 texto += page.extract_text() or ""
+        if not os.path.exists("txt_virtualizados"):
+            os.makedirs("txt_virtualizados")
+        with open(f"txt_virtualizados/{nome_arquivo}.txt", "w", encoding="utf-8") as txt_file:
+            txt_file.write(texto)
         return texto.strip()
     except:
-        return "ERRO EXTRAÇÃO"
+        return "ERRO CLONAGEM"
+
+
+def ler_txt_virtual(nome_arquivo):
+    try:
+        with open(f"txt_virtualizados/{nome_arquivo}.txt", "r", encoding="utf-8") as txt_file:
+            return txt_file.read()
+    except:
+        return "ERRO LEITURA"
 
 
 def aplicar_regex_campos(texto):
@@ -93,94 +105,73 @@ def aplicar_regex_campos(texto):
         campos[key] = campos[key].group(1).strip() if campos[key] else ""
     return campos
 
+# =========================
+# ABA PARA CLONAGEM E LEITURA =========================
 
-def salvar_txt_virtual(link, nome_arquivo):
-    try:
-        response = requests.get(link)
-        with BytesIO(response.content) as f:
-            reader = PyPDF2.PdfReader(f)
-            texto = ""
-            for page in reader.pages:
-                texto += page.extract_text() or ""
-        if not os.path.exists("txt_virtualizados"):
-            os.makedirs("txt_virtualizados")
-        with open(f"txt_virtualizados/{nome_arquivo}.txt", "w", encoding="utf-8") as txt_file:
-            txt_file.write(texto)
-        return texto.strip()
-    except:
-        return "ERRO EXTRAÇÃO"
-
-
-def ler_txt_virtual(nome_arquivo):
-    try:
-        with open(f"txt_virtualizados/{nome_arquivo}.txt", "r", encoding="utf-8") as txt_file:
-            return txt_file.read()
-    except:
-        return "ERRO LEITURA"
+tabs = st.tabs(["🔄 Clonar PDFs para TXT", "📥 Ler & Organizar Dados TXT"])
 
 # =========================
-# PROCESSAMENTO PRINCIPAL
+# ABA 1 - Clonagem
 # =========================
+with tabs[0]:
+    if url_pasta:
+        folder_id = extrair_folder_id(url_pasta)
+        if folder_id:
+            estrutura = []
+            listar_arquivos_recursivo(folder_id, API_KEY, "PRESTAÇÃO DE CONTAS", estrutura)
+            df_estrutura = pd.DataFrame(estrutura)
+            st.success(f"🎯 {len(df_estrutura)} arquivos encontrados e organizados!")
+            st.dataframe(df_estrutura)
 
-if url_pasta:
-    folder_id = extrair_folder_id(url_pasta)
-    if folder_id:
-        estrutura = []
-        listar_arquivos_recursivo(folder_id, API_KEY, "PRESTAÇÃO DE CONTAS", estrutura)
-        df_estrutura = pd.DataFrame(estrutura)
-        st.success(f"🎯 {len(df_estrutura)} arquivos encontrados e organizados!")
-        st.dataframe(df_estrutura)
+            st.write("### 🧩 Clonando PDFs em .txt...")
 
-        st.write("### 🧩 Iniciando Extração e Virtualização em .txt...")
+            status_clonagem = []
+            for index, row in df_estrutura.iterrows():
+                st.write(f"🔍 Clonando: {row['Nome_Arquivo']}")
+                if row['Tipo'] == "PDF":
+                    nome_limpo = row['Nome_Arquivo'].replace(".pdf", "")
+                    resultado = clonar_pdf_para_txt(row['Link'], nome_limpo)
+                    status_clonagem.append({
+                        "Nome_Arquivo": row['Nome_Arquivo'],
+                        "Status_Clonagem": "Sucesso" if resultado != "ERRO CLONAGEM" else "Falha"
+                    })
 
-        dados_extraidos = []
-        painel_dados = []
-        for index, row in df_estrutura.iterrows():
-            st.write(f"🔍 Processando: {row['Nome_Arquivo']}")
-            status_extracao = "Falha"
-            if row['Tipo'] == "PDF":
-                nome_limpo = row['Nome_Arquivo'].replace(".pdf", "")
-                texto = salvar_txt_virtual(row['Link'], nome_limpo)
-                if texto and texto != "ERRO EXTRAÇÃO":
-                    campos = aplicar_regex_campos(texto)
-                    pertinencia = 1.0 if campos['Receita_Bruta'] != "" else 0.7
-                    status_extracao = "Sucesso"
-                    dados_extraidos.append({
-                        "Path": row['Path'],
-                        "Nome_Arquivo": row['Nome_Arquivo'],
-                        "Link": row['Link'],
-                        **campos,
-                        "Texto_Completo": texto,
-                        "Pertinencia": pertinencia,
-                        "Status_Extracao": status_extracao
-                    })
-                    painel_dados.append({
-                        "Municipio": row['Path'].split("/")[-1],
-                        "Mes_Ano": row['Path'].split("/")[-2] if len(row['Path'].split("/")) > 2 else "",
-                        "Nome_Arquivo": row['Nome_Arquivo'],
-                        "Texto_Clonado": texto,
-                        "Status_Extracao": status_extracao
-                    })
-                else:
-                    painel_dados.append({
-                        "Municipio": row['Path'].split("/")[-1],
-                        "Mes_Ano": row['Path'].split("/")[-2] if len(row['Path'].split("/")) > 2 else "",
-                        "Nome_Arquivo": row['Nome_Arquivo'],
-                        "Texto_Clonado": "",
-                        "Status_Extracao": status_extracao
-                    })
+            df_clonagem = pd.DataFrame(status_clonagem)
+            st.write("### 📄 Status da Clonagem dos PDFs:")
+            st.dataframe(df_clonagem)
+
+            csv1 = df_estrutura.to_csv(index=False)
+            csv2 = df_clonagem.to_csv(index=False)
+            st.download_button("📥 Baixar Estrutura Geral CSV", csv1, file_name="estrutura_geral.csv")
+            st.download_button("📥 Baixar Status da Clonagem CSV", csv2, file_name="status_clonagem.csv")
+
+# =========================
+# ABA 2 - Leitura e Organização
+# =========================
+with tabs[1]:
+    st.write("### 📥 Leitura dos Arquivos .txt Clonados...")
+
+    dados_extraidos = []
+    if os.path.exists("txt_virtualizados"):
+        arquivos_txt = [f for f in os.listdir("txt_virtualizados") if f.endswith(".txt")]
+        for arquivo in arquivos_txt:
+            nome_limpo = arquivo.replace(".txt", "")
+            texto = ler_txt_virtual(nome_limpo)
+            if texto and texto != "ERRO LEITURA":
+                campos = aplicar_regex_campos(texto)
+                pertinencia = 1.0 if campos['Receita_Bruta'] != "" else 0.7
+                dados_extraidos.append({
+                    "Nome_Arquivo": arquivo,
+                    **campos,
+                    "Texto_Clonado": texto,
+                    "Pertinencia": pertinencia
+                })
 
         df_final = pd.DataFrame(dados_extraidos)
-        df_painel = pd.DataFrame(painel_dados)
-        st.write("### 📄 Banco Virtual de Dados Completos:")
+        st.write("### 📊 Painel de Dados Extraídos dos .txt:")
         st.dataframe(df_final)
 
-        st.write("### 📊 Painel Informacional Consolidado:")
-        st.dataframe(df_painel)
-
-        csv1 = df_estrutura.to_csv(index=False)
-        csv2 = df_final.to_csv(index=False)
-        csv3 = df_painel.to_csv(index=False)
-        st.download_button("📥 Baixar Estrutura Geral CSV", csv1, file_name="estrutura_geral.csv")
-        st.download_button("📥 Baixar Dados Extraídos CSV", csv2, file_name="dados_extraidos.csv")
-        st.download_button("📥 Baixar Painel Consolidado CSV", csv3, file_name="painel_consolidado.csv")
+        csv3 = df_final.to_csv(index=False)
+        st.download_button("📥 Baixar Dados Extraídos CSV", csv3, file_name="dados_extraidos.csv")
+    else:
+        st.warning("Nenhum arquivo TXT clonado encontrado. Execute a etapa de clonagem primeiro!")
