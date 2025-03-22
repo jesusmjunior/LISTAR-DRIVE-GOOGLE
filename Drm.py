@@ -1,34 +1,28 @@
 import streamlit as st
 import pandas as pd
 import requests
-from io import BytesIO
-import gspread
-from google.oauth2.service_account import Credentials
 
 # =========================
 # CONFIGURAÇÃO DO DASHBOARD
 # =========================
 st.set_page_config(page_title="📊 Dashboard DRM Consolidado", layout="wide")
-st.title("📊 Painel Consolidado de DRMs - Google Sheets")
+st.title("📊 Painel Consolidado de DRMs - Google Sheets CSV Publicado")
 
 # =========================
 # GOOGLE SHEETS CONFIGURAÇÃO
 # =========================
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1zutwNtWKAXkWeeUXEeOWPn2FIOs60ts6giCYHmMV3WQ/edit?usp=sharing"
-SHEET_ID = "1zutwNtWKAXkWeeUXEeOWPn2FIOs60ts6giCYHmMV3WQ"
-API_KEY = "AIzaSyAKibc0A3TerDdfQeZBLePxU01PbK_53Lw"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9wDOFBPvRLOcGhOUUuX9UKRkned5Fbgg9fzF6LfkiEMpmhovcJkG215YPWmprHnOwgrAA4n-FYD2v/pub?output=csv"
 
 # =========================
-# LEITURA DIRETA DO GOOGLE SHEETS
+# LEITURA DIRETA DO CSV PÚBLICO
 # =========================
 @st.cache_data
-def load_google_sheet():
-    url_csv = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
-    df_estrutura = pd.read_csv(url_csv)
+def load_csv_sheet():
+    df_estrutura = pd.read_csv(CSV_URL)
     return df_estrutura
 
-st.sidebar.success("✅ Lendo diretamente do Google Sheets Consolidado 2025")
-df_estrutura = load_google_sheet()
+st.sidebar.success("✅ Lendo diretamente do CSV Público Consolidado 2025")
+df_estrutura = load_csv_sheet()
 
 # =========================
 # CONTADORES RESUMIDOS
