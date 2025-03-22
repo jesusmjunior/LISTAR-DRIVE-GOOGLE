@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import re
 import requests
-from sympy import symbols, Piecewise
 from io import BytesIO
 from pdfminer.high_level import extract_text
 import os
@@ -112,14 +111,6 @@ def ler_txt_virtual(nome_arquivo):
             return txt_file.read()
     except:
         return "ERRO LEITURA"
-
-# =========================
-# MODELO FUZZY (PERTINÊNCIA)
-# =========================
-
-x = symbols('x')
-pertinencia_formula = Piecewise((1.0, x >= 0.9), (0.7, (x < 0.9) & (x >= 0.6)), (0.0, x < 0.6))
-st.latex(r"\mu_{DRM}(x) = \begin{cases} 1.0 & \text{se } x \geq 0.9 \\ 0.7 & \text{se } 0.6 \leq x < 0.9 \\ 0.0 & \text{se } x < 0.6 \end{cases}")
 
 # =========================
 # PROCESSAMENTO PRINCIPAL
