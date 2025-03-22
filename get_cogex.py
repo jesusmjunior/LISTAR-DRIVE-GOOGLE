@@ -24,7 +24,7 @@ O sistema irá rastrear, extrair e virtualizar 100% dos dados dos DRM.
 # =========================
 # INPUT DO USUÁRIO
 # =========================
-url_pasta = st.text_input("🔗 Insira o link público da pasta:")
+url_pasta = st.text_input("🔗https://drive.google.com/drive/folders/1xx-o5LrfFrkUwPCSmZoh2WCaUOtfL2EW?usp=sharing")
 
 # =========================
 # SUA API KEY CONFIGURADA
