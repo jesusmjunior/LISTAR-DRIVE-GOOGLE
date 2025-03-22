@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import requests
 import re
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 # =========================
 # CONFIGURAÇÃO DO DASHBOARD
@@ -57,7 +55,6 @@ if mes_selecionado != "Todos":
 # EXIBIR TABELA COM CATEGORIAS E DADOS
 # =========================
 st.subheader("📂 Estrutura das Pastas e Arquivos - Categorizados por Nome de Arquivo")
-
 st.dataframe(df_estrutura[['Nome_Arquivo', 'Categoria', 'Link']])
 
 # =========================
@@ -68,13 +65,8 @@ st.subheader("📊 Gráfico: Distribuição por Categoria")
 # Contagem por categoria
 categoria_count = df_estrutura['Categoria'].value_counts()
 
-# Gerar gráfico de barras
-fig, ax = plt.subplots(figsize=(10, 6))
-sns.barplot(x=categoria_count.index, y=categoria_count.values, palette="Set2", ax=ax)
-ax.set_title('Distribuição de Arquivos por Categoria')
-ax.set_xlabel('Categoria')
-ax.set_ylabel('Número de Arquivos')
-st.pyplot(fig)
+# Gerar gráfico de barras usando gráfico nativo do Streamlit
+st.bar_chart(categoria_count)
 
 # =========================
 # FUNÇÃO DE SANITIZAÇÃO DOS DADOS DO PDF
