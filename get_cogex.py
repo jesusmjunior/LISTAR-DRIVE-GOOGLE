@@ -4,7 +4,6 @@ import re
 import requests
 from io import BytesIO
 import os
-import PyPDF2
 
 # =========================
 # CONFIGURAÇÃO DO APP
@@ -67,19 +66,18 @@ def listar_arquivos_recursivo(folder_id, api_key, path, estrutura):
         st.error(f"Erro API: {response.text}")
 
 
-def clonar_pdf_para_txt(link, nome_arquivo):
+# =========================
+# FUNÇÃO SIMPLES PARA SALVAR PDF COMO TXT SEM PyPDF2
+# =========================
+
+def clonar_pdf_para_txt_basico(link, nome_arquivo):
     try:
         response = requests.get(link)
-        with BytesIO(response.content) as f:
-            reader = PyPDF2.PdfReader(f)
-            texto = ""
-            for page in reader.pages:
-                texto += page.extract_text() or ""
         if not os.path.exists("txt_virtualizados"):
             os.makedirs("txt_virtualizados")
-        with open(f"txt_virtualizados/{nome_arquivo}.txt", "w", encoding="utf-8") as txt_file:
-            txt_file.write(texto)
-        return texto.strip()
+        with open(f"txt_virtualizados/{nome_arquivo}.pdf", "wb") as pdf_file:
+            pdf_file.write(response.content)
+        return "CLONADO COM SUCESSO"
     except:
         return "ERRO CLONAGEM"
 
@@ -123,17 +121,17 @@ with tabs[0]:
             st.success(f"🎯 {len(df_estrutura)} arquivos encontrados e organizados!")
             st.dataframe(df_estrutura)
 
-            st.write("### 🧩 Clonando PDFs em .txt...")
+            st.write("### 🧩 Clonando PDFs...")
 
             status_clonagem = []
             for index, row in df_estrutura.iterrows():
                 st.write(f"🔍 Clonando: {row['Nome_Arquivo']}")
                 if row['Tipo'] == "PDF":
                     nome_limpo = row['Nome_Arquivo'].replace(".pdf", "")
-                    resultado = clonar_pdf_para_txt(row['Link'], nome_limpo)
+                    resultado = clonar_pdf_para_txt_basico(row['Link'], nome_limpo)
                     status_clonagem.append({
                         "Nome_Arquivo": row['Nome_Arquivo'],
-                        "Status_Clonagem": "Sucesso" if resultado != "ERRO CLONAGEM" else "Falha"
+                        "Status_Clonagem": resultado
                     })
 
             df_clonagem = pd.DataFrame(status_clonagem)
