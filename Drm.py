@@ -1,70 +1,110 @@
 import streamlit as st
 import pandas as pd
+import requests
+from io import BytesIO
+import gspread
+from google.oauth2.service_account import Credentials
 
 # =========================
 # CONFIGURAÇÃO DO DASHBOARD
 # =========================
 st.set_page_config(page_title="📊 Dashboard DRM Consolidado", layout="wide")
-st.title("📊 Painel Consolidado de DRMs")
+st.title("📊 Painel Consolidado de DRMs - Google Sheets")
 
 # =========================
-# UPLOAD DOS ARQUIVOS CSV
+# GOOGLE SHEETS CONFIGURAÇÃO
 # =========================
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1zutwNtWKAXkWeeUXEeOWPn2FIOs60ts6giCYHmMV3WQ/edit?usp=sharing"
+SHEET_ID = "1zutwNtWKAXkWeeUXEeOWPn2FIOs60ts6giCYHmMV3WQ"
+API_KEY = "AIzaSyAKibc0A3TerDdfQeZBLePxU01PbK_53Lw"
 
-st.sidebar.header("📂 Upload dos Arquivos")
-estrutura_csv = st.sidebar.file_uploader("🔽 Upload Estrutura Geral CSV", type=["csv"])
-clonagem_csv = st.sidebar.file_uploader("🔽 Upload Status Clonagem CSV", type=["csv"])
+# =========================
+# LEITURA DIRETA DO GOOGLE SHEETS
+# =========================
+@st.cache_data
+def load_google_sheet():
+    url_csv = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
+    df_estrutura = pd.read_csv(url_csv)
+    return df_estrutura
 
-if estrutura_csv and clonagem_csv:
-    df_estrutura = pd.read_csv(estrutura_csv)
-    df_clonagem = pd.read_csv(clonagem_csv)
+st.sidebar.success("✅ Lendo diretamente do Google Sheets Consolidado 2025")
+df_estrutura = load_google_sheet()
 
-    st.success("✅ Arquivos carregados com sucesso!")
+# =========================
+# CONTADORES RESUMIDOS
+# =========================
+st.subheader("📌 Resumo Geral")
+total_pastas = df_estrutura['Path'].nunique()
+total_arquivos = len(df_estrutura)
+total_drm = df_estrutura[df_estrutura['Tipo'] == 'PDF'].shape[0]
 
-    # =========================
-    # CONTADORES RESUMIDOS
-    # =========================
-    st.subheader("📌 Resumo Geral")
-    total_pastas = df_estrutura['Path'].nunique()
-    total_arquivos = len(df_estrutura)
-    total_drm = df_estrutura[df_estrutura['Tipo'] == 'PDF'].shape[0]
+col1, col2, col3 = st.columns(3)
+col1.metric("Pastas Únicas", total_pastas)
+col2.metric("Total Arquivos", total_arquivos)
+col3.metric("Total DRMs", total_drm)
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Pastas Únicas", total_pastas)
-    col2.metric("Total Arquivos", total_arquivos)
-    col3.metric("Total DRMs", total_drm)
+# =========================
+# FILTRO POR MUNICÍPIO E MÊS E SOMENTE PDF
+# =========================
+st.sidebar.subheader("🔎 Filtros")
+municipios = df_estrutura['Path'].apply(lambda x: x.split('/')[-1]).unique().tolist()
+municipio_selecionado = st.sidebar.selectbox("Selecionar Município", options=["Todos"] + municipios)
 
-    # =========================
-    # FILTRO POR MUNICÍPIO E MÊS
-    # =========================
-    st.sidebar.subheader("🔎 Filtros")
-    municipios = df_estrutura['Path'].apply(lambda x: x.split('/')[-1]).unique().tolist()
-    municipio_selecionado = st.sidebar.selectbox("Selecionar Município", options=["Todos"] + municipios)
+meses = df_estrutura['Nome_Arquivo'].apply(lambda x: x.split('-')[1] if '-' in x else '').unique().tolist()
+mes_selecionado = st.sidebar.selectbox("Selecionar Mês", options=["Todos"] + meses)
 
-    meses = df_estrutura['Nome_Arquivo'].apply(lambda x: x.split('-')[1] if '-' in x else '').unique().tolist()
-    mes_selecionado = st.sidebar.selectbox("Selecionar Mês", options=["Todos"] + meses)
+# Filtrando apenas PDF puro DRM
+df_drm = df_estrutura[df_estrutura['Tipo'] == 'PDF']
+df_display = df_drm.copy()
+df_display['Link_Clicavel'] = df_display['Link'].apply(lambda x: f"[Abrir Link]({x})")
 
-    df_display = df_estrutura.merge(df_clonagem[['Nome_Arquivo', 'Status_Clonagem']], on='Nome_Arquivo', how='left')
-    df_display['Link_Clicavel'] = df_display['Link'].apply(lambda x: f"[Abrir Link]({x})")
-    df_display['Status_Icone'] = df_display['Status_Clonagem'].apply(lambda x: '🟢 Sucesso' if x=="CLONADO COM SUCESSO" else '🔴 Falha')
+# Aplicando filtros
+if municipio_selecionado != "Todos":
+    df_display = df_display[df_display['Path'].str.contains(municipio_selecionado)]
+if mes_selecionado != "Todos":
+    df_display = df_display[df_display['Nome_Arquivo'].str.contains(mes_selecionado)]
 
-    # Aplicando filtros
-    if municipio_selecionado != "Todos":
-        df_display = df_display[df_display['Path'].str.contains(municipio_selecionado)]
-    if mes_selecionado != "Todos":
-        df_display = df_display[df_display['Nome_Arquivo'].str.contains(mes_selecionado)]
+# Extrair Município, Mês, Ano
+df_display['Município'] = df_display['Path'].apply(lambda x: x.split('/')[-1])
+df_display['Mês'] = df_display['Nome_Arquivo'].apply(lambda x: x.split('-')[1] if '-' in x else '')
+df_display['Ano'] = df_display['Nome_Arquivo'].apply(lambda x: x.split('-')[2] if len(x.split('-')) > 2 else '')
 
-    # =========================
-    # TABELA PRINCIPAL
-    # =========================
-    st.subheader("📂 Estrutura das Pastas e Arquivos")
-    st.dataframe(df_display[['Path', 'Nome_Arquivo', 'Tipo', 'Link_Clicavel', 'Status_Icone']])
+# =========================
+# TABELA PRINCIPAL + VISUALIZAR TXT
+# =========================
+st.subheader("📂 Estrutura das Pastas e Arquivos - Apenas DRMs PDF")
 
-    # =========================
-    # DOWNLOAD CSV CONSOLIDADO
-    # =========================
-    csv_download = df_display.to_csv(index=False)
-    st.download_button("📥 Baixar Estrutura Consolidada CSV", csv_download, file_name="estrutura_consolidada.csv")
+painel_virtual = []
 
-else:
-    st.info("⏳ Aguarde... Faça upload dos arquivos CSV na barra lateral para iniciar o painel.")
+for index, row in df_display.iterrows():
+    st.write(f"**📄 {row['Nome_Arquivo']}**")
+    st.write(f"📁 Município: {row['Município']} | 🗓️ Mês: {row['Mês']} | Ano: {row['Ano']}")
+    st.markdown(row['Link_Clicavel'], unsafe_allow_html=True)
+    if st.button(f"📥 Converter e Exibir TXT - {row['Nome_Arquivo']}", key=f"btn_{index}"):
+        try:
+            response = requests.get(row['Link'])
+            texto_extraido = response.content.decode('latin1', errors='ignore')
+            st.text_area(f"📄 Conteúdo TXT - {row['Nome_Arquivo']}", value=texto_extraido, height=300)
+            painel_virtual.append({
+                "Município": row['Município'],
+                "Mês": row['Mês'],
+                "Ano": row['Ano'],
+                "Nome_Arquivo": row['Nome_Arquivo'],
+                "Texto": texto_extraido
+            })
+            st.download_button("📄 Baixar TXT", data=texto_extraido, file_name=f"{row['Nome_Arquivo'].replace('.pdf', '')}.txt")
+        except Exception as e:
+            st.error(f"Erro ao extrair texto: {e}")
+
+# =========================
+# DOWNLOAD CSV CONSOLIDADO + BANCO VIRTUAL TXT
+# =========================
+csv_download = df_display.to_csv(index=False)
+st.download_button("📥 Baixar Estrutura Consolidada CSV", csv_download, file_name="estrutura_consolidada_DRM.csv")
+
+if painel_virtual:
+    df_virtual = pd.DataFrame(painel_virtual)
+    st.subheader("📑 Banco Virtual Consolidado em TXT")
+    st.dataframe(df_virtual)
+    csv_virtual = df_virtual.to_csv(index=False)
+    st.download_button("📥 Baixar Banco Virtual TXT Consolidado", csv_virtual, file_name="banco_virtual_DRM.csv")
