@@ -12,7 +12,7 @@ st.title("📊 Painel Consolidado de DRMs - Google Sheets CSV Publicado")
 # =========================
 # GOOGLE SHEETS CONFIGURAÇÃO
 # =========================
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9wDOFBPvRLOcGhOUUuX9UKRkned5Fbgg9fzF6LfkiEMpmhovcJkG215YPWmprHnOwgrAA4n-FYD2v/pub?output=csv"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSMDcKkFLItxGY0Kb9QBkeQAaYGXYczh0rn7w7bmvQjfSwwCpfo9lNowR4XIPiYNtL4RdGXDUq8NEht/pub?output=csv"
 
 # =========================
 # LEITURA DIRETA DO CSV PÚBLICO
