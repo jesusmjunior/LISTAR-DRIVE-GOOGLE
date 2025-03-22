@@ -41,9 +41,9 @@ st.markdown(f"🎉 **Total de DRMs encontrados:** {total_drm}")
 # =========================
 df_estrutura['Categoria'] = df_estrutura['Nome_Arquivo'].apply(lambda x: 'DRM' if 'DRM' in x else ('DECISÃO' if 'DECISÃO' in x else ('DECLARAÇÃO' if 'DECLARAÇÃO' in x else ('MINUTA' if 'MINUTA' in x else 'OUTRO'))))
 
-# Adicionando as colunas para município, mês, e verificando se o arquivo foi entregue em janeiro ou fevereiro
+# Melhorando extração do município, mês e ano
 df_estrutura['Município'] = df_estrutura['Path'].apply(lambda x: x.split('/')[-1])
-df_estrutura['Mês'] = df_estrutura['Nome_Arquivo'].apply(lambda x: x.split('-')[1] if '-' in x else '')
+df_estrutura['Mês'] = df_estrutura['Nome_Arquivo'].apply(lambda x: re.search(r'(\d{2})', x).group(1) if re.search(r'(\d{2})', x) else '')
 df_estrutura['Ano'] = df_estrutura['Nome_Arquivo'].apply(lambda x: x.split('-')[2] if len(x.split('-')) > 2 else '')
 df_estrutura['Mês_Entrega'] = df_estrutura['Nome_Arquivo'].apply(lambda x: 'Janeiro' if '01' in x else ('Fevereiro' if '02' in x else 'Outro'))
 
