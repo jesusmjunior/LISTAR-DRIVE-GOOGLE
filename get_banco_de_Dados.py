@@ -36,7 +36,7 @@ else:
         df_links = pd.read_csv(uploaded_csv)
         link_list.extend(df_links.iloc[:, 0].tolist())
 
-API_KEY = "SUA_API_KEY_AQUI"
+API_KEY = "AIzaSyAKibc0A3TerDdfQeZBLePxU01PbK_53Lw""
 
 # =====================
 # FUNÇÕES AUXILIARES
