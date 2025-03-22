@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 import requests
-from io import BytesIO
+import tempfile
 import os
 
 # =========================
@@ -71,7 +71,7 @@ def listar_arquivos_recursivo(folder_id, api_key, path, estrutura, contador):
 def clonar_pdf_para_txt_basico(link, nome_arquivo, path):
     try:
         response = requests.get(link)
-        pasta_destino = f"txt_virtualizados/{path}"
+        pasta_destino = tempfile.mkdtemp()
         if not os.path.exists(pasta_destino):
             os.makedirs(pasta_destino)
         with open(f"{pasta_destino}/{nome_arquivo}.pdf", "wb") as pdf_file:
