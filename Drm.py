@@ -39,25 +39,42 @@ if login():
     df_estrutura = load_csv_sheet()
     st.success("✅ Dados carregados com sucesso!")
 
-    total_drm = df_estrutura[df_estrutura['Nome_Arquivo'].str.contains('DRM', na=False)].shape[0]
-    st.markdown(f"🎉 **Total de DRMs encontrados:** {total_drm}")
+    # Criando uma nova coluna para Classificação Semântica
+    def classificar_documento(nome):
+        nome_upper = nome.upper()
+        if 'DRM' in nome_upper:
+            return 'DRM'
+        elif 'COMPROVANTE' in nome_upper:
+            return 'COMPROVANTE'
+        elif 'DECLARA' in nome_upper:
+            return 'DECLARAÇÃO'
+        elif 'DECIS' in nome_upper:
+            return 'DECISÃO'
+        else:
+            return 'OUTROS DOC'
+
+    df_estrutura['Classificação'] = df_estrutura['Nome_Arquivo'].apply(classificar_documento)
 
     st.subheader("📂 Estrutura das Pastas e Arquivos - Categorizados por Nome de Arquivo")
 
     # Filtros combinados para cada coluna
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
-        filtro_municipio = st.multiselect("Município", options=sorted(df_estrutura['Município'].dropna().unique()))
+        filtro_class = st.multiselect("Classificação", options=sorted(df_estrutura['Classificação'].unique()))
     with col2:
-        filtro_mes = st.multiselect("Mês", options=sorted(df_estrutura['Mês'].dropna().unique()))
+        filtro_municipio = st.multiselect("Município", options=sorted(df_estrutura['Município'].dropna().unique()))
     with col3:
-        filtro_ano = st.multiselect("Ano", options=sorted(df_estrutura['Ano'].dropna().unique()))
+        filtro_mes = st.multiselect("Mês", options=sorted(df_estrutura['Mês'].dropna().unique()))
     with col4:
+        filtro_ano = st.multiselect("Ano", options=sorted(df_estrutura['Ano'].dropna().unique()))
+    with col5:
         filtro_tipo = st.multiselect("Tipo", options=sorted(df_estrutura['Tipo'].dropna().unique()))
 
     df_filtrado = df_estrutura.copy()
 
+    if filtro_class:
+        df_filtrado = df_filtrado[df_filtrado['Classificação'].isin(filtro_class)]
     if filtro_municipio:
         df_filtrado = df_filtrado[df_filtrado['Município'].isin(filtro_municipio)]
     if filtro_mes:
@@ -71,7 +88,10 @@ if login():
     df_filtrado['Link'] = df_filtrado['Link'].apply(lambda x: f'<a href="{x}" target="_blank">Abrir PDF</a>' if pd.notna(x) else '')
 
     st.write("\n**Dados Filtrados:**")
-    st.write(df_filtrado[['Nome_Arquivo', 'Município', 'Mês', 'Ano', 'Estrutura_Nome', 'Link', 'Tipo']].to_html(escape=False, index=False), unsafe_allow_html=True)
+    st.write(df_filtrado[['Classificação', 'Nome_Arquivo', 'Município', 'Mês', 'Ano', 'Estrutura_Nome', 'Link', 'Tipo']].to_html(escape=False, index=False), unsafe_allow_html=True)
+
+    st.subheader("📊 Distribuição por Classificação")
+    st.bar_chart(df_filtrado['Classificação'].value_counts())
 
     st.subheader("📊 Distribuição por Município")
     st.bar_chart(df_filtrado['Município'].value_counts())
