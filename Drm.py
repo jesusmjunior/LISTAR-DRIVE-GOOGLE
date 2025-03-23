@@ -2,7 +2,31 @@ import streamlit as st
 import pandas as pd
 import requests
 import re
+import streamlit as st
+import pandas as pd
+import numpy as np
 
+# ================================
+# CONFIGURAÇÃO INICIAL
+# ================================
+st.set_page_config(page_title="Dashboard Previdenciário Profissional", layout="wide")
+
+# ================================
+# LOGIN SIMPLES
+# ================================
+def login():
+    st.title("🔐 Área Protegida - Login Obrigatório")
+    user = st.text_input("Usuário (Nome)")
+    password = st.text_input("Senha", type="password")
+
+    # Definindo os usuários e senhas válidos
+    if (user == "COGEX" and password == "CGX"):
+        st.success("Login efetuado com sucesso ✅")
+        return True
+    else:
+        if user and password:
+            st.error("Usuário ou senha incorretos ❌")
+        return False
 # =========================
 # CONFIGURAÇÃO DO DASHBOARD
 # =========================
