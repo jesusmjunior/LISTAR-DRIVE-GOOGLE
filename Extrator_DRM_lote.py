@@ -1,9 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from odf.opendocument import load
-from odf.table import Table, TableRow, TableCell
-from odf.text import P
 import requests
 from io import BytesIO
 
@@ -29,24 +26,14 @@ def load_csv_sheet():
     return df
 
 # ================================
-# FUNÇÃO PARA EXTRAIR TEXTO DE .ODS
+# FUNÇÃO PARA EXTRAIR DADOS DE .ODS
 # ================================
 def extrair_dados_ods(file_content):
     try:
-        doc = load(file_content)
-        texto = []
-        for table in doc.spreadsheet.getElementsByType(Table):
-            for row in table.getElementsByType(TableRow):
-                linha = []
-                for cell in row.getElementsByType(TableCell):
-                    ps = cell.getElementsByType(P)
-                    cell_text = " ".join([str(p) for p in ps])
-                    linha.append(cell_text)
-                if any(linha):
-                    texto.append(linha)
-        return texto
+        df = pd.read_excel(file_content, engine='odf')
+        return df
     except Exception as e:
-        return [[f"Erro ao processar: {e}"]]
+        return pd.DataFrame({"Erro": [str(e)]})
 
 # ================================
 # CARREGANDO OS DADOS DO GOOGLE SHEETS
@@ -78,13 +65,13 @@ if processar:
             response = requests.get(link)
             if response.status_code == 200:
                 conteudo_arquivo = BytesIO(response.content)
-                texto_extraido = extrair_dados_ods(conteudo_arquivo)
+                df_temp = extrair_dados_ods(conteudo_arquivo)
                 resultados.append({
                     "Nome_Arquivo": row['Nome_Arquivo'],
                     "Município": row['Município'],
                     "Mês": row['Mês'],
                     "Ano": row['Ano'],
-                    "Conteudo Extraido": texto_extraido[:5]  # Exibir só prévia
+                    "Conteudo Extraido": df_temp.head().to_dict()  # Apenas prévia
                 })
         except Exception as e:
             resultados.append({
