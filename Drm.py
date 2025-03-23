@@ -44,7 +44,7 @@ if login():
     total_drm = df_estrutura[df_estrutura['Nome_Arquivo'].str.contains('DRM', na=False)].shape[0]
     st.markdown(f"🎉 **Total de DRMs encontrados:** {total_drm}")
 
-    st.subheader("📂 Estrutura das Pastas e Arquivos - Categorizados por Nome de Arquivo")
+    st.subheader("📂 DRM 2024 - Estrutura das Pastas e Arquivos - Categorizados por Nome de Arquivo-JJ I.A.")
 
     st.write("🔎 **Filtragem de dados**")
     filtro_nome = st.text_input("🔍 Filtrar por nome do arquivo DRM:", "")
