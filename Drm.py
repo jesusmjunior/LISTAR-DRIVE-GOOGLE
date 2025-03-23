@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import requests
-import re
 import numpy as np
 
 # ================================
@@ -44,17 +42,36 @@ if login():
     total_drm = df_estrutura[df_estrutura['Nome_Arquivo'].str.contains('DRM', na=False)].shape[0]
     st.markdown(f"🎉 **Total de DRMs encontrados:** {total_drm}")
 
-    st.subheader("📂 DRM 2024 - Estrutura das Pastas e Arquivos - Categorizados por Nome de Arquivo-JM I.A.")
+    st.subheader("📂 Estrutura das Pastas e Arquivos - Categorizados por Nome de Arquivo")
 
-    st.write("🔎 **Filtragem de dados**")
-    filtro_nome = st.text_input("🔍 Filtrar por nome do arquivo DRM:", "")
+    # Filtros combinados para cada coluna
+    col1, col2, col3, col4 = st.columns(4)
 
-    if filtro_nome:
-        df_filtrado = df_estrutura[df_estrutura['Nome_Arquivo'].str.contains(filtro_nome, case=False, na=False)]
-    else:
-        df_filtrado = df_estrutura.copy()
+    with col1:
+        filtro_municipio = st.multiselect("Município", options=sorted(df_estrutura['Município'].dropna().unique()))
+    with col2:
+        filtro_mes = st.multiselect("Mês", options=sorted(df_estrutura['Mês'].dropna().unique()))
+    with col3:
+        filtro_ano = st.multiselect("Ano", options=sorted(df_estrutura['Ano'].dropna().unique()))
+    with col4:
+        filtro_tipo = st.multiselect("Tipo", options=sorted(df_estrutura['Tipo'].dropna().unique()))
 
-    st.dataframe(df_filtrado[['Nome_Arquivo', 'Município', 'Mês', 'Ano', 'Estrutura_Nome', 'Link', 'Tipo']])
+    df_filtrado = df_estrutura.copy()
+
+    if filtro_municipio:
+        df_filtrado = df_filtrado[df_filtrado['Município'].isin(filtro_municipio)]
+    if filtro_mes:
+        df_filtrado = df_filtrado[df_filtrado['Mês'].isin(filtro_mes)]
+    if filtro_ano:
+        df_filtrado = df_filtrado[df_filtrado['Ano'].isin(filtro_ano)]
+    if filtro_tipo:
+        df_filtrado = df_filtrado[df_filtrado['Tipo'].isin(filtro_tipo)]
+
+    # Tornando os links clicáveis
+    df_filtrado['Link'] = df_filtrado['Link'].apply(lambda x: f'<a href="{x}" target="_blank">Abrir PDF</a>' if pd.notna(x) else '')
+
+    st.write("\n**Dados Filtrados:**")
+    st.write(df_filtrado[['Nome_Arquivo', 'Município', 'Mês', 'Ano', 'Estrutura_Nome', 'Link', 'Tipo']].to_html(escape=False, index=False), unsafe_allow_html=True)
 
     st.subheader("📊 Distribuição por Município")
     st.bar_chart(df_filtrado['Município'].value_counts())
