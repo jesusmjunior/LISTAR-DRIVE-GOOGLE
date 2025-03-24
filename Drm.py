@@ -34,7 +34,7 @@ def load_csv_sheet():
     return df
 
 if login():
-    st.title("📊 Painel Consolidado DECLARAÇÃO DE RECEITA MENSAL 2024 COMPLETO TODOS OS .ODS(PLANILHA) E TODOS OS (PDF) ESTÃO SENDO TRATADO E VÃO ALEIMENTAR UMA SO PLANILHA E DASHBOARD (OS DADOS VEM DIRETO DA PASTA DA CAC ")
+    st.title("📊 Painel Consolidado DECLARAÇÃO DE RECEITA MENSAL 2024 COMPLETO TODOS OS .ODS(PLANILHA) E TODOS OS (PDF) ESTÃO SENDO TRATADOS E VÃO ALIMENTAR UMA SÓ PLANILHA E DASHBOARD (OS DADOS VEM DIRETO DA PASTA DA CAC(GOOGLE DRIVE) ")
 
     df_estrutura = load_csv_sheet()
     st.success("✅ Dados carregados com sucesso!")
