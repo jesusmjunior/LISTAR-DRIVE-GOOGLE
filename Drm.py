@@ -5,7 +5,7 @@ import numpy as np
 # ================================
 # CONFIGURAÇÃO INICIAL
 # ================================
-st.set_page_config(page_title="Dashboard Previdenciário Profissional", layout="wide")
+st.set_page_config(page_title="Dashboard COGEX DRM PRESTAÇÃO DE CONTAS", layout="wide")
 
 # ================================
 # LOGIN SIMPLES
@@ -34,7 +34,7 @@ def load_csv_sheet():
     return df
 
 if login():
-    st.title("📊 Painel Consolidado de DRMs - Dados Públicos 2025")
+    st.title("📊 Painel Consolidado DECLARAÇÃO DE RECEITA MENSAL 2024 COMPLETO TODOS OS .OS(PLANILHA) E TODOS OS (PDF) ESTÃO SENDO TRATADO E VÃO ALEIMENTAR UMA SO PLANILHA E DASHBOARD (OS DADOS VEM DIRETO DA PASTA DA CAC ")
 
     df_estrutura = load_csv_sheet()
     st.success("✅ Dados carregados com sucesso!")
